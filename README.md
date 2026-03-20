@@ -60,7 +60,32 @@ firebase deploy --only firestore:rules
 ## Firebase Hosting & CI
 
 - **Local deploy:** `firebase deploy` (runs `npm run build` first, then uploads **`dist/`**).
-- **GitHub Actions:** Workflows in `.github/workflows/` deploy on PR preview and on merge to `main`. Add repository **Secrets** with the same names as your `.env` (`VITE_FIREBASE_API_KEY`, …) so the hosted build includes Firebase config and Google sign-in works.
+- **GitHub Actions:** Workflows in `.github/workflows/` deploy on PR preview and on merge to `main`.
+
+### Required GitHub Actions secrets
+
+In the repo on GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
+
+| Secret | Value |
+|--------|--------|
+| **`FIREBASE_SERVICE_ACCOUNT`** | **Entire JSON** from a Firebase service account private key (see below). Without this, `action-hosting-deploy` fails with *Input required and not supplied: firebaseServiceAccount*. |
+| `VITE_FIREBASE_API_KEY` | Same as `.env` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Same as `.env` |
+| `VITE_FIREBASE_PROJECT_ID` | Same as `.env` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Same as `.env` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Same as `.env` |
+| `VITE_FIREBASE_APP_ID` | Same as `.env` |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Optional; omit or leave empty if unused |
+
+**Create `FIREBASE_SERVICE_ACCOUNT`:**
+
+1. [Firebase Console](https://console.firebase.google.com) → your project → **Project settings** (gear) → **Service accounts**.
+2. **Generate new private key** → download the `.json` file.
+3. In GitHub, new secret **`FIREBASE_SERVICE_ACCOUNT`**: paste the **full file contents** (one line JSON is fine).
+
+**Match `projectId`:** In `.github/workflows/firebase-hosting-*.yml`, `projectId:` must equal your Firebase project id (e.g. `splitter-fd759`). Change it if your project id is different.
+
+**Forks:** PR previews only run for branches on the same repo (`head.repo == github.repository`); secrets are not available to workflows from untrusted forks unless you change that (not recommended).
 
 ## PWA
 
