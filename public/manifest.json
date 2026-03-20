@@ -1,0 +1,16 @@
+{
+  "name": "Splitter - Expense Tracker",
+  "short_name": "Splitter",
+  "description": "Split expenses with friends and never forget to collect",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
