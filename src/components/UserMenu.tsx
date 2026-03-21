@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { LogOut } from 'lucide-react'
 
 export function UserMenu() {
@@ -8,10 +9,11 @@ export function UserMenu() {
   if (!authRequired || !user) return null
 
   const photo = user.photoURL
-  const name = user.displayName ?? user.email ?? 'Account'
+  const name = user.displayName ?? user.email ?? user.phoneNumber ?? 'Account'
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
+      <ThemeToggle />
       {photo ? (
         <img
           src={photo}

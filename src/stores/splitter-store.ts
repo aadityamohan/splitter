@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Participant, Expense, Settlement } from '@/types'
-import type { GroupDoc, PendingInviteDoc } from '@/lib/firestore-groups'
+import type { GroupDoc, OutboundInviteDoc, PendingInviteDoc } from '@/lib/firestore-groups'
 import { getFirebaseAuth } from '@/lib/auth'
 import {
   isFirebaseConfigured,
@@ -9,9 +9,11 @@ import {
   fetchGroupIfMember,
   ensureUserGroupIndex,
   fetchPendingInvitesForEmail,
+  fetchPendingInvitesForPhone,
   fetchOutboundInvites,
   createGroup as fsCreateGroup,
   createPendingInvite,
+  createPhoneInvite,
   acceptInvite as fsAcceptInvite,
   cancelInvite,
   declineInvite,
@@ -53,7 +55,7 @@ export interface SplitterState {
   activeGroupId: string | null
   myGroups: GroupDoc[]
   pendingInvites: PendingInviteDoc[]
-  outboundInvites: { id: string; emailLower: string; createdAt: string }[]
+  outboundInvites: OutboundInviteDoc[]
   participants: Participant[]
   expenses: Expense[]
   settlements: Settlement[]
@@ -61,23 +63,26 @@ export interface SplitterState {
   savedDescriptions: string[]
 
   /** Load groups + invites for signed-in user */
-  refreshWorkspace: (uid: string, email: string | null, displayName: string | null) => Promise<void>
+  refreshWorkspace: (
+    uid: string,
+    email: string | null,
+    displayName: string | null,
+    phone?: string | null
+  ) => Promise<void>
   /** Open a group and load ledger */
   selectGroup: (groupId: string | null) => Promise<void>
   createGroup: (name: string, uid: string, displayName: string | null, email: string | null) => Promise<void>
-  inviteToActiveGroup: (
-    email: string,
-    inviterUid: string,
-    inviterName: string
-  ) => Promise<void>
+  inviteToActiveGroup: (email: string, inviterUid: string, inviterName: string) => Promise<void>
+  inviteByPhoneToActiveGroup: (phone: string, inviterUid: string, inviterName: string) => Promise<void>
   acceptPendingInvite: (
     invite: PendingInviteDoc,
     uid: string,
     displayName: string | null,
-    email: string | null
+    email: string | null,
+    phone?: string | null
   ) => Promise<void>
   declinePendingInvite: (invite: PendingInviteDoc) => Promise<void>
-  cancelOutboundInvite: (inviteeEmail: string) => Promise<void>
+  cancelOutboundInvite: (invite: OutboundInviteDoc) => Promise<void>
   refreshOutboundInvites: () => Promise<void>
 
   addParticipant: (name: string) => void
@@ -101,13 +106,15 @@ export const useSplitterStore = create<SplitterState>()(
       expenses: [],
       settlements: [],
 
-      refreshWorkspace: async (uid, email, _displayName) => {
-        if (!isFirebaseConfigured || !email) {
+      refreshWorkspace: async (uid, email, _displayName, phone) => {
+        if (!isFirebaseConfigured) {
           set({ myGroups: [], pendingInvites: [] })
           return
         }
+
         let myGroups: GroupDoc[] = []
         let pendingInvites: PendingInviteDoc[] = []
+
         try {
           myGroups = await fetchMyGroups(uid)
           const persistedGroupId = get().activeGroupId
@@ -120,15 +127,35 @@ export const useSplitterStore = create<SplitterState>()(
           }
         } catch (e) {
           console.error(
-            'refreshWorkspace: fetchMyGroups failed — deploy firestore.rules (must include userGroups + mailInvites) and check .env project id.',
+            'refreshWorkspace: fetchMyGroups failed — deploy firestore.rules (must include userGroups + mailInvites + phoneInvites) and check .env project id.',
             e
           )
         }
-        try {
-          pendingInvites = await fetchPendingInvitesForEmail(email)
-        } catch (e) {
-          console.error('refreshWorkspace: fetchPendingInvitesForEmail failed.', e)
+
+        // Fetch email-based invites
+        if (email) {
+          try {
+            const emailInvites = await fetchPendingInvitesForEmail(email)
+            pendingInvites = [...pendingInvites, ...emailInvites]
+          } catch (e) {
+            console.error('refreshWorkspace: fetchPendingInvitesForEmail failed.', e)
+          }
         }
+
+        // Fetch phone-based invites
+        if (phone) {
+          try {
+            const phoneInvites = await fetchPendingInvitesForPhone(phone)
+            // Deduplicate by id
+            const existingIds = new Set(pendingInvites.map((i) => i.id))
+            for (const inv of phoneInvites) {
+              if (!existingIds.has(inv.id)) pendingInvites.push(inv)
+            }
+          } catch (e) {
+            console.error('refreshWorkspace: fetchPendingInvitesForPhone failed.', e)
+          }
+        }
+
         set({ myGroups, pendingInvites })
       },
 
@@ -168,13 +195,9 @@ export const useSplitterStore = create<SplitterState>()(
 
       createGroup: async (name, uid, displayName, email) => {
         if (!isFirebaseConfigured) return
-        const id = await fsCreateGroup(
-          uid,
-          displayName ?? 'You',
-          email ?? '',
-          name
-        )
-        await get().refreshWorkspace(uid, email ?? '', displayName)
+        const id = await fsCreateGroup(uid, displayName ?? 'You', email ?? '', name)
+        const u = getFirebaseAuth()?.currentUser
+        await get().refreshWorkspace(uid, email ?? '', displayName, u?.phoneNumber ?? null)
         await get().selectGroup(id)
       },
 
@@ -182,27 +205,30 @@ export const useSplitterStore = create<SplitterState>()(
         const gid = get().activeGroupId
         if (!gid || !isFirebaseConfigured) return
         const g = get().myGroups.find((x) => x.id === gid)
-        await createPendingInvite(
-          gid,
-          g?.name ?? 'Group',
-          email,
-          inviterUid,
-          inviterName
-        )
+        await createPendingInvite(gid, g?.name ?? 'Group', email, inviterUid, inviterName)
         await get().refreshOutboundInvites()
       },
 
-      acceptPendingInvite: async (invite, uid, displayName, email) => {
-        await fsAcceptInvite(invite, uid, displayName ?? 'Member', email ?? '')
-        await get().refreshWorkspace(uid, email ?? '', displayName)
+      inviteByPhoneToActiveGroup: async (phone, inviterUid, inviterName) => {
+        const gid = get().activeGroupId
+        if (!gid || !isFirebaseConfigured) return
+        const g = get().myGroups.find((x) => x.id === gid)
+        await createPhoneInvite(gid, g?.name ?? 'Group', phone, inviterUid, inviterName)
+        await get().refreshOutboundInvites()
+      },
+
+      acceptPendingInvite: async (invite, uid, displayName, email, phone) => {
+        await fsAcceptInvite(invite, uid, displayName ?? 'Member', email ?? '', phone)
+        const u = getFirebaseAuth()?.currentUser
+        await get().refreshWorkspace(uid, email ?? '', displayName, u?.phoneNumber ?? null)
         await get().selectGroup(invite.groupId)
       },
 
       declinePendingInvite: async (invite) => {
         await declineInvite(invite)
         const u = getFirebaseAuth()?.currentUser
-        if (u?.email) {
-          await get().refreshWorkspace(u.uid, u.email, u.displayName)
+        if (u) {
+          await get().refreshWorkspace(u.uid, u.email, u.displayName, u.phoneNumber)
         } else {
           set((s) => ({
             pendingInvites: s.pendingInvites.filter((p) => p.id !== invite.id),
@@ -210,10 +236,10 @@ export const useSplitterStore = create<SplitterState>()(
         }
       },
 
-      cancelOutboundInvite: async (inviteeEmail) => {
+      cancelOutboundInvite: async (invite) => {
         const gid = get().activeGroupId
         if (!gid) return
-        await cancelInvite(gid, inviteeEmail)
+        await cancelInvite(gid, invite)
         await get().refreshOutboundInvites()
       },
 

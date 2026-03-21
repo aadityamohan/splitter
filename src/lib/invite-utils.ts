@@ -44,6 +44,48 @@ export function buildInviteGmailComposeUrl(
   return `https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${to}&su=${su}&body=${body}`
 }
 
+/**
+ * WhatsApp deep link — opens WhatsApp with a pre-filled invite message.
+ * Phone number should be in international format (digits only, no spaces/dashes).
+ * Passing an empty phone opens the share sheet on mobile without a contact pre-filled.
+ */
+export function buildInviteWhatsAppUrl(
+  inviterName: string,
+  groupName: string,
+  inviteeEmail: string,
+  appUrl: string,
+  phone = ''
+): string {
+  const text = encodeURIComponent(
+    `${inviterName} invited you to split expenses in "${groupName}" on Splitter.\n\n` +
+      `1. Open: ${appUrl}\n` +
+      `2. Sign in with Google using *${normalizeInviteEmail(inviteeEmail)}*\n` +
+      `3. Accept the invite on the home screen.`
+  )
+  const base = phone
+    ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`
+    : `https://wa.me/?text=${text}`
+  return base
+}
+
+/**
+ * SMS URI — opens the default messaging app with a pre-filled message.
+ * Works on iOS and Android mobile browsers.
+ */
+export function buildInviteSmsUrl(
+  inviterName: string,
+  groupName: string,
+  inviteeEmail: string,
+  appUrl: string,
+  phone = ''
+): string {
+  const body = encodeURIComponent(
+    `${inviterName} invited you to "${groupName}" on Splitter.\n` +
+      `Open ${appUrl}, sign in with Google (${normalizeInviteEmail(inviteeEmail)}), and accept the invite.`
+  )
+  return phone ? `sms:${phone.replace(/\D/g, '')}?body=${body}` : `sms:?body=${body}`
+}
+
 /** Default mail client (mailto) — same content as Gmail compose. */
 export function buildInviteMailto(
   inviterName: string,

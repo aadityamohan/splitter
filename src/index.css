@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Use .dark class (not prefers-color-scheme) so the user toggle controls it */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -25,49 +28,84 @@
   --radius-lg: 0.75rem;
 }
 
+/* ─── Palette ────────────────────────────────────────────────────────────────
+   #222831  →  oklch(0.21  0.016 256)   dark navy-gray
+   #393E46  →  oklch(0.274 0.015 256)   medium dark gray
+   #948979  →  oklch(0.608 0.033  70)   warm taupe
+   #DFD0B8  →  oklch(0.851 0.040  77)   warm cream
+   ──────────────────────────────────────────────────────────────────────────── */
+
 @layer base {
+
+  /* ── Light mode ─────────────────────────────────────────────────────────── */
   :root {
-    --background: oklch(0.985 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
+    /* Very light warm cream as page background */
+    --background:         oklch(0.955 0.022 78);
+    --foreground:         oklch(0.21  0.016 256);    /* #222831 */
+
+    /* White cards on the cream page */
+    --card:               oklch(1     0     0);
+    --card-foreground:    oklch(0.21  0.016 256);
+
+    --popover:            oklch(1     0     0);
+    --popover-foreground: oklch(0.21  0.016 256);
+
+    /* Dark buttons — #393E46 */
+    --primary:            oklch(0.274 0.015 256);
+    --primary-foreground: oklch(0.851 0.040  77);    /* cream text on dark btn */
+
+    /* Muted cream fills */
+    --secondary:          oklch(0.918 0.025 78);
+    --secondary-foreground: oklch(0.274 0.015 256);
+
+    --muted:              oklch(0.928 0.020 78);
+    --muted-foreground:   oklch(0.608 0.033  70);    /* #948979 */
+
+    /* Accent same as primary */
+    --accent:             oklch(0.274 0.015 256);
+    --accent-foreground:  oklch(0.851 0.040  77);
+
+    --destructive:        oklch(0.577 0.245 27.325);
     --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+
+    /* Warm cream borders */
+    --border:             oklch(0.800 0.032 78);
+    --input:              oklch(0.820 0.028 78);
+    --ring:               oklch(0.274 0.015 256);
   }
 
+  /* ── Dark mode ──────────────────────────────────────────────────────────── */
   .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.269 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.371 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
+    --background:         oklch(0.21  0.016 256);    /* #222831 */
+    --foreground:         oklch(0.851 0.040  77);    /* #DFD0B8 cream */
+
+    /* Slightly lifted card over the dark background */
+    --card:               oklch(0.244 0.015 256);    /* between #222831 and #393E46 */
+    --card-foreground:    oklch(0.851 0.040  77);
+
+    --popover:            oklch(0.274 0.015 256);    /* #393E46 */
+    --popover-foreground: oklch(0.851 0.040  77);
+
+    /* Cream primary in dark mode */
+    --primary:            oklch(0.851 0.040  77);    /* #DFD0B8 */
+    --primary-foreground: oklch(0.21  0.016 256);    /* #222831 */
+
+    --secondary:          oklch(0.274 0.015 256);    /* #393E46 */
+    --secondary-foreground: oklch(0.851 0.040  77);
+
+    --muted:              oklch(0.274 0.015 256);
+    --muted-foreground:   oklch(0.608 0.033  70);    /* #948979 */
+
+    /* Taupe accent */
+    --accent:             oklch(0.608 0.033  70);    /* #948979 */
+    --accent-foreground:  oklch(0.21  0.016 256);
+
+    --destructive:        oklch(0.704 0.191 22.216);
     --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+
+    --border:             oklch(1 0 0 / 12%);
+    --input:              oklch(1 0 0 / 15%);
+    --ring:               oklch(0.608 0.033  70);    /* #948979 */
   }
 
   * {

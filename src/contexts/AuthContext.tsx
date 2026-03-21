@@ -22,9 +22,14 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-async function restoreSessionWorkspace(uid: string, email: string | null, displayName: string | null) {
+async function restoreSessionWorkspace(
+  uid: string,
+  email: string | null,
+  displayName: string | null,
+  phone: string | null
+) {
   const store = useSplitterStore.getState()
-  await store.refreshWorkspace(uid, email ?? '', displayName)
+  await store.refreshWorkspace(uid, email, displayName, phone)
   const { activeGroupId, myGroups } = useSplitterStore.getState()
   const stillMember = activeGroupId && myGroups.some((g) => g.id === activeGroupId)
   if (stillMember) {
@@ -56,13 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u)
       setLoading(false)
-      if (u?.email) {
-        void restoreSessionWorkspace(u.uid, u.email, u.displayName).catch((err) =>
+      if (u) {
+        void restoreSessionWorkspace(u.uid, u.email, u.displayName, u.phoneNumber).catch((err) =>
           console.error('restoreSessionWorkspace', err)
-        )
-      } else if (u) {
-        void useSplitterStore.getState().refreshWorkspace(u.uid, '', u.displayName).catch((err) =>
-          console.error('refreshWorkspace', err)
         )
       }
     })

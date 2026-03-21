@@ -21,8 +21,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Users, Plus, Mail, LogIn } from 'lucide-react'
+import { Users, Plus, Mail, LogIn, Phone } from 'lucide-react'
 import type { PendingInviteDoc } from '@/lib/firestore-groups'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 export function GroupsHome() {
   const { user } = useAuth()
@@ -52,11 +53,11 @@ export function GroupsHome() {
   }
 
   const handleAccept = async (inv: PendingInviteDoc) => {
-    if (!user?.email) return
+    if (!user) return
     setAcceptError(null)
     setBusy(true)
     try {
-      await acceptPendingInvite(inv, user.uid, user.displayName, user.email)
+      await acceptPendingInvite(inv, user.uid, user.displayName, user.email, user.phoneNumber)
     } catch (e: unknown) {
       let msg =
         e instanceof Error ? e.message : 'Could not join the group. Check Firestore rules are deployed.'
@@ -85,9 +86,12 @@ export function GroupsHome() {
       <header className="border-b">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <h1 className="text-xl font-bold tracking-tight">Splitter</h1>
-          <p className="max-w-[200px] truncate text-sm text-muted-foreground">
-            {user?.email}
-          </p>
+          <div className="flex items-center gap-1">
+            <p className="max-w-[160px] truncate text-sm text-muted-foreground hidden sm:block">
+              {user?.email ?? user?.phoneNumber}
+            </p>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -108,8 +112,12 @@ export function GroupsHome() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{inv.groupName}</CardTitle>
                   <CardDescription>
-                    {inv.inviterName} invited you — sign in as{' '}
-                    <strong>{inv.emailLower}</strong>
+                    {inv.inviterName} invited you
+                    {inv.contactType === 'phone' ? (
+                      <span> via phone — <Phone className="inline h-3.5 w-3.5 mb-0.5" /> <strong>{inv.phone}</strong></span>
+                    ) : (
+                      <span> — sign in as <strong>{inv.emailLower}</strong></span>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-2">

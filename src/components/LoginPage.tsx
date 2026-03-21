@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,7 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Scale } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Scale, Phone, ArrowLeft, RefreshCw } from 'lucide-react'
+import { sendPhoneOtp, verifyPhoneOtp, clearRecaptchaVerifier } from '@/lib/auth'
+import type { ConfirmationResult } from 'firebase/auth'
+import { ThemeToggle } from '@/components/ThemeToggle'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -33,10 +40,48 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
+type Tab = 'google' | 'phone'
+type PhoneStep = 'enter-phone' | 'enter-otp'
+
 export function LoginPage() {
   const { signInWithGoogle } = useAuth()
+  const [tab, setTab] = useState<Tab>('google')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Phone OTP state
+  const [phoneStep, setPhoneStep] = useState<PhoneStep>('enter-phone')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [otp, setOtp] = useState('')
+  const [countdown, setCountdown] = useState(0)
+  const confirmationRef = useRef<ConfirmationResult | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Clean up recaptcha on unmount
+  useEffect(() => {
+    return () => {
+      clearRecaptchaVerifier()
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
+
+  function startCountdown(seconds = 60) {
+    setCountdown(seconds)
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(timerRef.current!)
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
+  }
+
+  // ── Google ────────────────────────────────────────────────────────────────
 
   const handleGoogle = async () => {
     setError(null)
@@ -44,38 +89,219 @@ export function LoginPage() {
     try {
       await signInWithGoogle()
     } catch (e: unknown) {
-      const message =
-        e instanceof Error ? e.message : 'Sign-in failed. Try again.'
-      setError(message)
+      setError(e instanceof Error ? e.message : 'Sign-in failed. Try again.')
     } finally {
       setBusy(false)
     }
   }
 
+  // ── Phone OTP ─────────────────────────────────────────────────────────────
+
+  const handleSendOtp = async () => {
+    setError(null)
+    const raw = phoneNumber.trim()
+    if (!raw) { setError('Enter your phone number first.'); return }
+
+    // Auto-prepend +91 for 10-digit Indian numbers
+    const e164 = raw.startsWith('+') ? raw : raw.length === 10 ? `+91${raw}` : `+${raw}`
+
+    setBusy(true)
+    try {
+      const confirmation = await sendPhoneOtp(e164)
+      confirmationRef.current = confirmation
+      setPhoneStep('enter-otp')
+      startCountdown(60)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not send OTP. Check the number and try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    setError(null)
+    if (!otp.trim()) { setError('Enter the 6-digit OTP.'); return }
+    if (!confirmationRef.current) { setError('Session expired. Send OTP again.'); return }
+    setBusy(true)
+    try {
+      await verifyPhoneOtp(confirmationRef.current, otp.trim())
+      // onAuthStateChanged in AuthContext handles the rest
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Invalid OTP. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    clearRecaptchaVerifier()
+    confirmationRef.current = null
+    setOtp('')
+    setPhoneStep('enter-phone')
+    setError(null)
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-4">
+      {/* Invisible reCAPTCHA container — must exist before sendPhoneOtp is called */}
+      <div id="recaptcha-container" />
+
+      {/* Theme toggle — top-right */}
+      <div className="fixed top-3 right-3">
+        <ThemeToggle />
+      </div>
+
       <div className="flex items-center gap-2 text-2xl font-bold tracking-tight">
         <Scale className="h-8 w-8" />
         Splitter
       </div>
+
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Sign in</CardTitle>
           <CardDescription>
-            Use your Google account to access shared expenses. Only Google sign-in is supported.
+            Choose how you'd like to sign in.
           </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full gap-2 border-2"
-            onClick={handleGoogle}
-            disabled={busy}
-          >
-            <GoogleIcon className="h-5 w-5" />
-            {busy ? 'Signing in…' : 'Continue with Google'}
-          </Button>
+          {/* Tab switcher */}
+          <div className="flex rounded-lg border p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => { setTab('google'); setError(null) }}
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                tab === 'google'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Google
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('phone'); setError(null) }}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-medium transition-colors ${
+                tab === 'phone'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Phone number
+            </button>
+          </div>
+
+          {/* ── Google tab ── */}
+          {tab === 'google' && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full gap-2 border-2"
+              onClick={handleGoogle}
+              disabled={busy}
+            >
+              <GoogleIcon className="h-5 w-5" />
+              {busy ? 'Signing in…' : 'Continue with Google'}
+            </Button>
+          )}
+
+          {/* ── Phone tab ── */}
+          {tab === 'phone' && phoneStep === 'enter-phone' && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="phone-input">Mobile number</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="phone-input"
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !busy && void handleSendOtp()}
+                    className="flex-1"
+                    autoComplete="tel"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Include country code (e.g. +91 for India). 10-digit numbers get +91 automatically.
+                </p>
+              </div>
+              <Button
+                type="button"
+                className="w-full gap-2"
+                onClick={handleSendOtp}
+                disabled={busy || !phoneNumber.trim()}
+              >
+                <Phone className="h-4 w-4" />
+                {busy ? 'Sending OTP…' : 'Send OTP'}
+              </Button>
+            </div>
+          )}
+
+          {tab === 'phone' && phoneStep === 'enter-otp' && (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Change number
+              </button>
+
+              <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+                OTP sent to <span className="font-semibold">{phoneNumber}</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="otp-input">Enter 6-digit OTP</Label>
+                <Input
+                  id="otp-input"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={(e) => e.key === 'Enter' && !busy && void handleVerifyOtp()}
+                  autoFocus
+                  className="text-center text-lg tracking-widest"
+                />
+              </div>
+
+              <Button
+                type="button"
+                className="w-full"
+                onClick={handleVerifyOtp}
+                disabled={busy || otp.length < 6}
+              >
+                {busy ? 'Verifying…' : 'Verify & Sign in'}
+              </Button>
+
+              <div className="flex items-center justify-center">
+                {countdown > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Resend OTP in {countdown}s
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Resend OTP
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Error message */}
           {error ? (
             <p className="text-center text-sm text-destructive" role="alert">
               {error}
@@ -83,6 +309,10 @@ export function LoginPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <p className="max-w-md text-center text-xs text-muted-foreground">
+        By signing in you agree to use this app responsibly. Phone verification is powered by Firebase.
+      </p>
     </div>
   )
 }
