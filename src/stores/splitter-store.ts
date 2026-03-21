@@ -31,6 +31,24 @@ function generateId() {
   return crypto.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+export const DEFAULT_DESCRIPTIONS = [
+  'Dinner',
+  'Lunch',
+  'Breakfast',
+  'Groceries',
+  'Petrol / Fuel',
+  'Hotel / Stay',
+  'Cab / Auto',
+  'Flight / Train',
+  'Movie / Event',
+  'Drinks',
+  'Coffee',
+  'Shopping',
+  'Utilities',
+  'Rent',
+  'Medicine',
+]
+
 export interface SplitterState {
   activeGroupId: string | null
   myGroups: GroupDoc[]
@@ -39,6 +57,8 @@ export interface SplitterState {
   participants: Participant[]
   expenses: Expense[]
   settlements: Settlement[]
+  /** User-saved custom descriptions; persisted in localStorage */
+  savedDescriptions: string[]
 
   /** Load groups + invites for signed-in user */
   refreshWorkspace: (uid: string, email: string | null, displayName: string | null) => Promise<void>
@@ -65,6 +85,8 @@ export interface SplitterState {
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void
   addSettlement: (settlement: Omit<Settlement, 'id' | 'createdAt'>) => void
   deleteExpense: (id: string) => void
+  saveDescription: (desc: string) => void
+  removeDescription: (desc: string) => void
 }
 
 export const useSplitterStore = create<SplitterState>()(
@@ -75,6 +97,7 @@ export const useSplitterStore = create<SplitterState>()(
       pendingInvites: [],
       outboundInvites: [],
       participants: [],
+      savedDescriptions: [],
       expenses: [],
       settlements: [],
 
@@ -258,10 +281,26 @@ export const useSplitterStore = create<SplitterState>()(
         }))
         deleteExpense(gid, id).catch(console.error)
       },
+
+      saveDescription: (desc) => {
+        const trimmed = desc.trim()
+        if (!trimmed) return
+        set((s) => ({
+          savedDescriptions: s.savedDescriptions.includes(trimmed)
+            ? s.savedDescriptions
+            : [trimmed, ...s.savedDescriptions].slice(0, 20),
+        }))
+      },
+
+      removeDescription: (desc) => {
+        set((s) => ({
+          savedDescriptions: s.savedDescriptions.filter((d) => d !== desc),
+        }))
+      },
     }),
     {
       name: STORAGE_KEY,
-      partialize: (s) => ({ activeGroupId: s.activeGroupId }),
+      partialize: (s) => ({ activeGroupId: s.activeGroupId, savedDescriptions: s.savedDescriptions }),
     }
   )
 )
