@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSplitterStore } from '@/stores/splitter-store'
-import { Plus, Receipt } from 'lucide-react'
+import { Check, Plus, Receipt } from 'lucide-react'
 
 export function AddExpenseDialog() {
   const [open, setOpen] = useState(false)
@@ -30,10 +30,37 @@ export function AddExpenseDialog() {
   const participants = useSplitterStore((s) => s.participants)
   const addExpense = useSplitterStore((s) => s.addExpense)
 
+  const numAmount = parseFloat(amount)
+  const validAmount = !isNaN(numAmount) && numAmount > 0
+
+  const perPerson =
+    validAmount && splitBetween.length > 0
+      ? (numAmount / splitBetween.length).toFixed(2)
+      : null
+
+  const allSelected = splitBetween.length === participants.length
+
+  const toggleSplit = (id: string) => {
+    setSplitBetween((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleAll = () => {
+    setSplitBetween(allSelected ? [] : participants.map((p) => p.id))
+  }
+
+  const handleOpen = (val: boolean) => {
+    setOpen(val)
+    if (val) {
+      // Pre-select everyone when the dialog opens
+      setSplitBetween(participants.map((p) => p.id))
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const numAmount = parseFloat(amount)
-    if (isNaN(numAmount) || numAmount <= 0 || !paidBy || splitBetween.length === 0) return
+    if (!validAmount || !paidBy || splitBetween.length === 0) return
 
     addExpense({
       amount: numAmount,
@@ -48,14 +75,8 @@ export function AddExpenseDialog() {
     setOpen(false)
   }
 
-  const toggleSplit = (id: string) => {
-    setSplitBetween((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpen}>
       <DialogTrigger asChild>
         <Button size="lg" className="gap-2">
           <Plus className="h-5 w-5" />
@@ -110,23 +131,67 @@ export function AddExpenseDialog() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* ── Split between ────────────────────────────── */}
           <div className="space-y-2">
-            <Label>Split between</Label>
-            <div className="flex flex-wrap gap-2">
-              {participants.map((u) => (
-                <Button
-                  key={u.id}
-                  type="button"
-                  variant={splitBetween.includes(u.id) ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => toggleSplit(u.id)}
-                >
-                  {u.name}
-                </Button>
-              ))}
+            <div className="flex items-center justify-between">
+              <Label>Split between</Label>
+              <button
+                type="button"
+                onClick={toggleAll}
+                className="text-xs text-primary underline-offset-2 hover:underline"
+              >
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
             </div>
+
+            <div className="rounded-lg border divide-y overflow-hidden">
+              {participants.map((u) => {
+                const selected = splitBetween.includes(u.id)
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => toggleSplit(u.id)}
+                    className={`flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors
+                      ${selected
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'bg-background text-muted-foreground hover:bg-muted'
+                      }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors
+                          ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}
+                      >
+                        {selected && <Check className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                      {u.name}
+                    </span>
+                    {selected && perPerson ? (
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        ₹{perPerson} each
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+
+            {splitBetween.length === 0 ? (
+              <p className="text-xs text-destructive">Select at least one person</p>
+            ) : perPerson ? (
+              <p className="text-xs text-muted-foreground text-right">
+                ₹{numAmount.toFixed(2)} ÷ {splitBetween.length} = <strong>₹{perPerson} per person</strong>
+              </p>
+            ) : null}
           </div>
-          <Button type="submit" className="w-full">
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!validAmount || !paidBy || splitBetween.length === 0}
+          >
             Add Expense
           </Button>
         </form>
