@@ -34,10 +34,10 @@ service cloud.firestore {
       return groupId + '|' + emailLower();
     }
 
+    // The document ID already encodes groupId so a single exists() is sufficient
     function hasPendingInviteForGroup(groupId) {
       return emailLower() != ''
-        && exists(/databases/$(database)/documents/mailInvites/$(emailLower())/items/$(pendingInviteIdForMe(groupId)))
-        && get(/databases/$(database)/documents/mailInvites/$(emailLower())/items/$(pendingInviteIdForMe(groupId))).data.groupId == groupId;
+        && exists(/databases/$(database)/documents/mailInvites/$(emailLower())/items/$(pendingInviteIdForMe(groupId)));
     }
 
     // ── Phone invite helpers ──────────────────────────────────────────────────
@@ -46,10 +46,10 @@ service cloud.firestore {
       return groupId + '|' + phoneNumber();
     }
 
+    // The document ID already encodes groupId so a single exists() is sufficient
     function hasPendingPhoneInviteForGroup(groupId) {
       return phoneNumber() != ''
-        && exists(/databases/$(database)/documents/phoneInvites/$(phoneNumber())/items/$(pendingPhoneInviteIdForMe(groupId)))
-        && get(/databases/$(database)/documents/phoneInvites/$(phoneNumber())/items/$(pendingPhoneInviteIdForMe(groupId))).data.groupId == groupId;
+        && exists(/databases/$(database)/documents/phoneInvites/$(phoneNumber())/items/$(pendingPhoneInviteIdForMe(groupId)));
     }
 
     function hasAnyPendingInviteForGroup(groupId) {

@@ -72,11 +72,20 @@ export function GroupsHome() {
     try {
       await acceptPendingInvite(inv, user.uid, user.displayName, user.email, user.phoneNumber)
     } catch (e: unknown) {
-      let msg =
-        e instanceof Error ? e.message : 'Could not join the group. Check Firestore rules are deployed.'
+      // Use the error message thrown by acceptInvite if it's specific (e.g. wrong email/phone)
+      let msg = e instanceof Error ? e.message : 'Could not join the group.'
       if (e instanceof FirebaseError && e.code === 'permission-denied') {
-        msg =
-          'Permission denied. Deploy the latest firestore.rules (npm run deploy:rules), sign in with the invited email, and ask the host to send a new invite if needed.'
+        if (inv.contactType === 'phone') {
+          msg =
+            'Permission denied. Make sure you are signed in with the phone number this invite was sent to (' +
+            inv.phone +
+            '). If the issue persists, ask the host to resend the invite.'
+        } else {
+          msg =
+            'Permission denied. Make sure you are signed in with the Google account this invite was sent to (' +
+            inv.emailLower +
+            '). If the issue persists, ask the host to resend the invite.'
+        }
       }
       setAcceptError(msg)
       console.error('acceptPendingInvite', e)
