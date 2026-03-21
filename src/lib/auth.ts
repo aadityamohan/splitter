@@ -4,8 +4,13 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithPhoneNumber,
+  linkWithPhoneNumber,
+  updateProfile,
+  updatePhoneNumber,
+  PhoneAuthProvider,
   RecaptchaVerifier,
   signOut as firebaseSignOut,
+  reload,
   type Auth,
   type ConfirmationResult,
 } from 'firebase/auth'
@@ -159,6 +164,143 @@ export async function verifyPhoneOtp(
     }
     throw e
   }
+}
+
+// ── Profile updates ───────────────────────────────────────────────────────────
+
+/** Update the signed-in user's display name. */
+export async function updateDisplayName(name: string): Promise<void> {
+  const auth = getFirebaseAuth()
+  if (!auth?.currentUser) throw new Error('Not signed in')
+  await updateProfile(auth.currentUser, { displayName: name.trim() })
+  await reload(auth.currentUser)
+}
+
+/**
+ * Step 1 – send OTP to link a new phone number to the current account.
+ * Works for Google-signed-in users who have no phone yet.
+ */
+export async function sendLinkPhoneOtp(
+  phoneNumber: string,
+  containerId = 'profile-recaptcha-container',
+  onSolved?: () => void,
+): Promise<ConfirmationResult> {
+  const auth = getFirebaseAuth()
+  if (!auth?.currentUser) throw new Error('Not signed in')
+  clearRecaptchaVerifier()
+  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+    size: 'normal',
+    callback: () => { onSolved?.() },
+    'expired-callback': () => { clearRecaptchaVerifier() },
+  })
+  await recaptchaVerifier.render()
+  try {
+    return await linkWithPhoneNumber(auth.currentUser, phoneNumber, recaptchaVerifier)
+  } catch (e) {
+    clearRecaptchaVerifier()
+    if (e instanceof FirebaseError) {
+      const msgs: Record<string, string> = {
+        'auth/invalid-phone-number': 'Invalid phone number. Use E.164 format, e.g. +919876543210.',
+        'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
+        'auth/captcha-check-failed': 'reCAPTCHA failed. Try again.',
+        'auth/provider-already-linked': 'A phone number is already linked to this account.',
+        'auth/credential-already-in-use': 'This phone number is already used by another account.',
+      }
+      if (msgs[e.code]) throw new Error(msgs[e.code])
+    }
+    throw e
+  }
+}
+
+/**
+ * Step 2 – confirm the OTP to finish linking the phone number.
+ * After this succeeds call `reloadCurrentUser()` to refresh the UI.
+ */
+export async function confirmLinkPhoneOtp(
+  confirmation: ConfirmationResult,
+  otp: string,
+): Promise<void> {
+  const auth = getFirebaseAuth()
+  try {
+    const result = await confirmation.confirm(otp)
+    // Also update the phone on the profile so updateProfile reflects it
+    if (result.user && auth) await reload(result.user)
+  } catch (e) {
+    if (e instanceof FirebaseError) {
+      if (e.code === 'auth/invalid-verification-code') throw new Error('Incorrect OTP. Try again.')
+      if (e.code === 'auth/code-expired') throw new Error('OTP expired. Request a new one.')
+    }
+    throw e
+  } finally {
+    clearRecaptchaVerifier()
+  }
+}
+
+/**
+ * Step 1 – send OTP to update (change) an existing phone number.
+ * Used by phone-auth users who want to change their number.
+ */
+export async function sendUpdatePhoneOtp(
+  newPhoneNumber: string,
+  containerId = 'profile-recaptcha-container',
+  onSolved?: () => void,
+): Promise<ConfirmationResult> {
+  const auth = getFirebaseAuth()
+  if (!auth?.currentUser) throw new Error('Not signed in')
+  clearRecaptchaVerifier()
+  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+    size: 'normal',
+    callback: () => { onSolved?.() },
+    'expired-callback': () => { clearRecaptchaVerifier() },
+  })
+  await recaptchaVerifier.render()
+  try {
+    return await signInWithPhoneNumber(auth, newPhoneNumber, recaptchaVerifier)
+  } catch (e) {
+    clearRecaptchaVerifier()
+    if (e instanceof FirebaseError) {
+      const msgs: Record<string, string> = {
+        'auth/invalid-phone-number': 'Invalid phone number. Use E.164 format, e.g. +919876543210.',
+        'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
+        'auth/credential-already-in-use': 'This number is already used by another account.',
+      }
+      if (msgs[e.code]) throw new Error(msgs[e.code])
+    }
+    throw e
+  }
+}
+
+/**
+ * Step 2 – confirm OTP and update the phone number on the current user.
+ */
+export async function confirmUpdatePhoneOtp(
+  confirmation: ConfirmationResult,
+  otp: string,
+): Promise<void> {
+  const auth = getFirebaseAuth()
+  if (!auth?.currentUser) throw new Error('Not signed in')
+  try {
+    const credential = PhoneAuthProvider.credential(
+      (confirmation as unknown as { verificationId: string }).verificationId,
+      otp,
+    )
+    await updatePhoneNumber(auth.currentUser, credential)
+    await reload(auth.currentUser)
+  } catch (e) {
+    if (e instanceof FirebaseError) {
+      if (e.code === 'auth/invalid-verification-code') throw new Error('Incorrect OTP. Try again.')
+      if (e.code === 'auth/code-expired') throw new Error('OTP expired. Request a new one.')
+    }
+    throw e
+  } finally {
+    clearRecaptchaVerifier()
+  }
+}
+
+/** Force-reload the current Firebase user so profile changes are reflected. */
+export async function reloadCurrentUser(): Promise<void> {
+  const auth = getFirebaseAuth()
+  if (auth?.currentUser) await reload(auth.currentUser)
 }
 
 // ── Sign out ──────────────────────────────────────────────────────────────────
