@@ -377,12 +377,16 @@ export async function fetchExpenses(groupId: string): Promise<Expense[]> {
       description: String(x.description ?? ''),
       paidBy: String(x.paidBy),
       splitBetween: Array.isArray(x.splitBetween) ? x.splitBetween.map(String) : [],
+      date: String(x.date ?? new Date().toISOString().slice(0, 10)),
       createdAt: String(x.createdAt ?? ''),
     }
   })
-  return list.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
+  // Sort by user-chosen date descending, then by createdAt for same-day entries
+  return list.sort((a, b) => {
+    const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+    if (dateDiff !== 0) return dateDiff
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
 }
 
 export async function fetchSettlements(groupId: string): Promise<Settlement[]> {
@@ -419,6 +423,7 @@ export async function insertExpense(groupId: string, expense: Expense): Promise<
     description: expense.description,
     paidBy: expense.paidBy,
     splitBetween: expense.splitBetween,
+    date: expense.date,
     createdAt: expense.createdAt,
   })
 }
@@ -434,6 +439,49 @@ export async function insertSettlement(groupId: string, settlement: Settlement):
 
 export async function deleteExpense(groupId: string, id: string): Promise<void> {
   await deleteDoc(doc(db(), 'groups', groupId, 'expenses', id))
+}
+
+/**
+ * Returns the net balance for `uid` in a group.
+ * Positive → others owe you. Negative → you owe others. Zero → settled.
+ */
+export async function fetchGroupNetBalance(groupId: string, uid: string): Promise<number> {
+  const participantsSnap = await getDocs(collection(db(), 'groups', groupId, 'participants'))
+  const myPid = participantsSnap.docs.find((d) => d.data().linkedUid === uid)?.id
+  if (!myPid) return 0
+
+  const [expSnap, setSnap] = await Promise.all([
+    getDocs(collection(db(), 'groups', groupId, 'expenses')),
+    getDocs(collection(db(), 'groups', groupId, 'settlements')),
+  ])
+
+  let net = 0
+
+  expSnap.docs.forEach((d) => {
+    const x = d.data()
+    const amount = Number(x.amount)
+    const paidBy = String(x.paidBy)
+    const split: string[] = Array.isArray(x.splitBetween) ? x.splitBetween.map(String) : []
+    const n = split.length
+    if (n === 0) return
+    const perPerson = amount / n
+
+    if (paidBy === myPid) {
+      // Others in the split owe me their share
+      net += split.filter((id) => id !== myPid).length * perPerson
+    } else if (split.includes(myPid)) {
+      // I owe the payer my share
+      net -= perPerson
+    }
+  })
+
+  setSnap.docs.forEach((d) => {
+    const x = d.data()
+    if (String(x.fromUser) === myPid) net -= Number(x.amount) // I paid someone
+    if (String(x.toUser) === myPid) net += Number(x.amount)   // someone paid me
+  })
+
+  return Math.round(net * 100) / 100
 }
 
 export async function deleteSettlement(groupId: string, id: string): Promise<void> {

@@ -14,6 +14,8 @@ export interface Expense {
   description: string
   paidBy: string
   splitBetween: string[]
+  /** ISO date string of when the expense occurred (user-chosen), e.g. "2025-03-20" */
+  date: string
   createdAt: string
 }
 

@@ -20,12 +20,13 @@ import {
 import { useSplitterStore } from '@/stores/splitter-store'
 import { useAuth } from '@/contexts/AuthContext'
 import { DescriptionCombobox } from '@/components/DescriptionCombobox'
-import { Check, Plus, Receipt, IndianRupee, ArrowRight } from 'lucide-react'
+import { Check, Plus, Receipt, IndianRupee, ArrowRight, CalendarDays } from 'lucide-react'
 
 export function AddExpenseDialog() {
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [date, setDate] = useState('')
   const [paidBy, setPaidBy] = useState('')
   const [splitBetween, setSplitBetween] = useState<string[]>([])
 
@@ -81,7 +82,7 @@ export function AddExpenseDialog() {
     setOpen(val)
     if (val) {
       setSplitBetween(participants.map((p) => p.id))
-      // Auto-select the signed-in user as payer
+      setDate(new Date().toISOString().slice(0, 10))
       const me = participants.find((p) => user?.uid && p.linkedUid === user.uid)
       if (me) setPaidBy(me.id)
     }
@@ -92,16 +93,17 @@ export function AddExpenseDialog() {
     if (!validAmount || !paidBy || splitCount === 0) return
 
     const finalDesc = description.trim() || 'Expense'
-    // Auto-save non-default descriptions the user actually uses
     saveDescription(finalDesc)
     addExpense({
       amount: numAmount,
       description: finalDesc,
+      date: date || new Date().toISOString().slice(0, 10),
       paidBy,
       splitBetween,
     })
     setAmount('')
     setDescription('')
+    setDate('')
     setPaidBy('')
     setSplitBetween([])
     setOpen(false)
@@ -143,6 +145,23 @@ export function AddExpenseDialog() {
                 className="pl-8"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Date */}
+          <div className="space-y-1.5">
+            <Label htmlFor="expense-date">Date</Label>
+            <div className="relative">
+              <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="expense-date"
+                type="date"
+                className="pl-8"
+                value={date}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setDate(e.target.value)}
                 required
               />
             </div>

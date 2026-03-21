@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FirebaseError } from 'firebase/app'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSplitterStore } from '@/stores/splitter-store'
@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Users, Plus, Mail, LogIn, Phone } from 'lucide-react'
 import type { PendingInviteDoc } from '@/lib/firestore-groups'
+import { fetchGroupNetBalance } from '@/lib/firestore-groups'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 export function GroupsHome() {
@@ -38,6 +39,18 @@ export function GroupsHome() {
   const [newName, setNewName] = useState('')
   const [busy, setBusy] = useState(false)
   const [acceptError, setAcceptError] = useState<string | null>(null)
+  // net balance per groupId: positive = others owe you, negative = you owe
+  const [groupBalances, setGroupBalances] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!user?.uid || myGroups.length === 0) return
+    const uid = user.uid
+    myGroups.forEach((g) => {
+      fetchGroupNetBalance(g.id, uid)
+        .then((net) => setGroupBalances((prev) => ({ ...prev, [g.id]: net })))
+        .catch(() => { /* silently skip */ })
+    })
+  }, [myGroups, user?.uid])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -192,22 +205,50 @@ export function GroupsHome() {
             </Card>
           ) : (
             <ul className="space-y-2">
-              {myGroups.map((g) => (
-                <li key={g.id}>
-                  <Button
-                    variant="outline"
-                    className="h-auto w-full justify-between py-4 text-left"
-                    onClick={() => void selectGroup(g.id)}
-                  >
-                    <span className="font-medium">{g.name}</span>
-                    {g.createdBy === user?.uid ? (
-                      <span className="text-xs text-muted-foreground">Owner</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Member</span>
-                    )}
-                  </Button>
-                </li>
-              ))}
+              {myGroups.map((g) => {
+                const net = groupBalances[g.id]
+                const loading = net === undefined
+
+                return (
+                  <li key={g.id}>
+                    <Button
+                      variant="outline"
+                      className="h-auto w-full justify-between py-4 text-left gap-3"
+                      onClick={() => void selectGroup(g.id)}
+                    >
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className="font-medium truncate">{g.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {g.createdBy === user?.uid ? 'Owner' : 'Member'} · {g.memberIds.length} {g.memberIds.length === 1 ? 'person' : 'people'}
+                        </span>
+                      </div>
+
+                      {/* Balance badge */}
+                      <span className="shrink-0 text-right">
+                        {loading ? (
+                          <span className="text-xs text-muted-foreground">…</span>
+                        ) : net === 0 ? (
+                          <span className="text-xs text-muted-foreground">Settled</span>
+                        ) : net > 0 ? (
+                          <span className="flex flex-col items-end">
+                            <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                              +₹{net.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-green-600/70 dark:text-green-400/70">you get back</span>
+                          </span>
+                        ) : (
+                          <span className="flex flex-col items-end">
+                            <span className="text-xs font-semibold text-destructive">
+                              −₹{Math.abs(net).toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-destructive/70">you owe</span>
+                          </span>
+                        )}
+                      </span>
+                    </Button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>

@@ -3,6 +3,27 @@
 /* Use .dark class (not prefers-color-scheme) so the user toggle controls it */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Brand palette overrides ────────────────────────────────────────────────
+   Green  #5A9690 → oklch(0.630 0.064 187)
+   Red    #A0153E → oklch(0.459 0.171  12)
+   All existing green-* / red-* utility classes pick these up automatically.
+   ──────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Green */
+  --color-green-300: oklch(0.780 0.055 187);
+  --color-green-400: oklch(0.720 0.060 187);
+  --color-green-500: oklch(0.630 0.064 187);
+  --color-green-600: oklch(0.540 0.060 187);
+  --color-green-700: oklch(0.460 0.054 187);
+
+  /* Red */
+  --color-red-300: oklch(0.620 0.145  12);
+  --color-red-400: oklch(0.540 0.160  12);
+  --color-red-500: oklch(0.459 0.171  12);
+  --color-red-600: oklch(0.390 0.155  12);
+  --color-red-700: oklch(0.330 0.135  12);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -39,11 +60,10 @@
 
   /* ── Light mode ─────────────────────────────────────────────────────────── */
   :root {
-    /* Very light warm cream as page background */
-    --background:         oklch(0.955 0.022 78);
+    /* Clean white background */
+    --background:         oklch(0.985 0 0);
     --foreground:         oklch(0.21  0.016 256);    /* #222831 */
 
-    /* White cards on the cream page */
     --card:               oklch(1     0     0);
     --card-foreground:    oklch(0.21  0.016 256);
 
@@ -54,57 +74,53 @@
     --primary:            oklch(0.274 0.015 256);
     --primary-foreground: oklch(0.851 0.040  77);    /* cream text on dark btn */
 
-    /* Muted cream fills */
-    --secondary:          oklch(0.918 0.025 78);
+    --secondary:          oklch(0.97  0     0);
     --secondary-foreground: oklch(0.274 0.015 256);
 
-    --muted:              oklch(0.928 0.020 78);
-    --muted-foreground:   oklch(0.608 0.033  70);    /* #948979 */
+    --muted:              oklch(0.97  0     0);
+    --muted-foreground:   oklch(0.556 0     0);
 
-    /* Accent same as primary */
-    --accent:             oklch(0.274 0.015 256);
-    --accent-foreground:  oklch(0.851 0.040  77);
+    --accent:             oklch(0.97  0     0);
+    --accent-foreground:  oklch(0.274 0.015 256);
 
-    --destructive:        oklch(0.577 0.245 27.325);
+    --destructive:        oklch(0.459 0.171 12);    /* #A0153E */
     --destructive-foreground: oklch(0.985 0 0);
 
-    /* Warm cream borders */
-    --border:             oklch(0.800 0.032 78);
-    --input:              oklch(0.820 0.028 78);
+    --border:             oklch(0.922 0     0);
+    --input:              oklch(0.922 0     0);
     --ring:               oklch(0.274 0.015 256);
   }
 
   /* ── Dark mode ──────────────────────────────────────────────────────────── */
   .dark {
-    --background:         oklch(0.21  0.016 256);    /* #222831 */
+    --background:         oklch(0.275 0.019 264);    /* exact #222831 */
     --foreground:         oklch(0.851 0.040  77);    /* #DFD0B8 cream */
 
-    /* Slightly lifted card over the dark background */
-    --card:               oklch(0.244 0.015 256);    /* between #222831 and #393E46 */
+    /* Cards use #393E46 — clearly lifted above the dark background */
+    --card:               oklch(0.362 0.016 264);    /* exact #393E46 */
     --card-foreground:    oklch(0.851 0.040  77);
 
-    --popover:            oklch(0.274 0.015 256);    /* #393E46 */
+    --popover:            oklch(0.362 0.016 264);
     --popover-foreground: oklch(0.851 0.040  77);
 
     /* Cream primary in dark mode */
     --primary:            oklch(0.851 0.040  77);    /* #DFD0B8 */
-    --primary-foreground: oklch(0.21  0.016 256);    /* #222831 */
+    --primary-foreground: oklch(0.275 0.019 264);    /* #222831 */
 
-    --secondary:          oklch(0.274 0.015 256);    /* #393E46 */
+    --secondary:          oklch(0.362 0.016 264);    /* #393E46 */
     --secondary-foreground: oklch(0.851 0.040  77);
 
-    --muted:              oklch(0.274 0.015 256);
+    --muted:              oklch(0.362 0.016 264);    /* #393E46 */
     --muted-foreground:   oklch(0.608 0.033  70);    /* #948979 */
 
-    /* Taupe accent */
     --accent:             oklch(0.608 0.033  70);    /* #948979 */
-    --accent-foreground:  oklch(0.21  0.016 256);
+    --accent-foreground:  oklch(0.275 0.019 264);
 
-    --destructive:        oklch(0.704 0.191 22.216);
+    --destructive:        oklch(0.560 0.168  12);    /* #A0153E brightened for dark bg */
     --destructive-foreground: oklch(0.985 0 0);
 
-    --border:             oklch(1 0 0 / 12%);
-    --input:              oklch(1 0 0 / 15%);
+    --border:             oklch(1 0 0 / 10%);
+    --input:              oklch(1 0 0 / 12%);
     --ring:               oklch(0.608 0.033  70);    /* #948979 */
   }
 

@@ -281,6 +281,7 @@ export const useSplitterStore = create<SplitterState>()(
         const newExpense: Expense = {
           ...expense,
           id: generateId(),
+          date: expense.date || new Date().toISOString().slice(0, 10),
           createdAt: new Date().toISOString(),
         }
         set((s) => ({ expenses: [newExpense, ...s.expenses] }))
