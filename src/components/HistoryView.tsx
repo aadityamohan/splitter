@@ -28,6 +28,7 @@ export function HistoryView() {
   )
   const participants = useSplitterStore((s) => s.participants)
   const deleteExpense = useSplitterStore((s) => s.deleteExpense)
+  const deleteSettlement = useSplitterStore((s) => s.deleteSettlement)
 
   const getUserName = (id: string) =>
     participants.find((p) => p.id === id)?.name ?? id
@@ -99,9 +100,19 @@ export function HistoryView() {
                     </p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="font-semibold">
-                  ₹{settlement.amount.toFixed(2)}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="font-semibold">
+                    ₹{settlement.amount.toFixed(2)}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => deleteSettlement(settlement.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )

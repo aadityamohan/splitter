@@ -25,6 +25,7 @@ import {
   insertExpense,
   insertSettlement,
   deleteExpense,
+  deleteSettlement,
 } from '@/lib/firestore-groups'
 
 const STORAGE_KEY = 'splitter-v2'
@@ -90,6 +91,7 @@ export interface SplitterState {
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void
   addSettlement: (settlement: Omit<Settlement, 'id' | 'createdAt'>) => void
   deleteExpense: (id: string) => void
+  deleteSettlement: (id: string) => void
   saveDescription: (desc: string) => void
   removeDescription: (desc: string) => void
 }
@@ -306,6 +308,15 @@ export const useSplitterStore = create<SplitterState>()(
           expenses: s.expenses.filter((e) => e.id !== id),
         }))
         deleteExpense(gid, id).catch(console.error)
+      },
+
+      deleteSettlement: (id) => {
+        const gid = get().activeGroupId
+        if (!gid) return
+        set((s) => ({
+          settlements: s.settlements.filter((st) => st.id !== id),
+        }))
+        deleteSettlement(gid, id).catch(console.error)
       },
 
       saveDescription: (desc) => {

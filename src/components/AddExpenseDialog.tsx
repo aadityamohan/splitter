@@ -98,7 +98,7 @@ export function AddExpenseDialog() {
       amount: numAmount,
       description: finalDesc,
       paidBy,
-      splitBetween: splitBetween.includes(paidBy) ? splitBetween : [...splitBetween, paidBy],
+      splitBetween,
     })
     setAmount('')
     setDescription('')

@@ -436,4 +436,8 @@ export async function deleteExpense(groupId: string, id: string): Promise<void> 
   await deleteDoc(doc(db(), 'groups', groupId, 'expenses', id))
 }
 
+export async function deleteSettlement(groupId: string, id: string): Promise<void> {
+  await deleteDoc(doc(db(), 'groups', groupId, 'settlements', id))
+}
+
 export { isFirebaseConfigured }
