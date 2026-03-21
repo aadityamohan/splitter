@@ -6,6 +6,8 @@ import {
   buildInviteGmailComposeUrl,
   buildInviteWhatsAppUrl,
   buildInviteSmsUrl,
+  buildPhoneInviteWhatsAppUrl,
+  buildPhoneInviteSmsUrl,
   normalizeInviteEmail,
 } from '@/lib/invite-utils'
 import { normalizePhone } from '@/lib/firestore-groups'
@@ -60,6 +62,7 @@ export function InviteByEmailDialog() {
   // Saved values for the share step
   const [savedEmail, setSavedEmail] = useState('')
   const [savedPhone, setSavedPhone] = useState('')
+  const [savedContactType, setSavedContactType] = useState<'email' | 'phone'>('email')
 
   const groupName = myGroups.find((g) => g.id === activeGroupId)?.name ?? 'this group'
   const inviterName = user?.displayName ?? user?.email ?? user?.phoneNumber ?? 'Your friend'
@@ -75,6 +78,7 @@ export function InviteByEmailDialog() {
     setPhone('')
     setSavedEmail('')
     setSavedPhone('')
+    setSavedContactType('email')
     setError(null)
   }
 
@@ -99,6 +103,7 @@ export function InviteByEmailDialog() {
       await inviteToActiveGroup(norm, user.uid, inviterName)
       setSavedEmail(norm)
       setSavedPhone(phone.trim())
+      setSavedContactType('email')
       setStep('share')
       await refreshOutboundInvites()
     } catch (err: unknown) {
@@ -125,6 +130,7 @@ export function InviteByEmailDialog() {
       await inviteByPhoneToActiveGroup(normalized, user.uid, inviterName)
       setSavedPhone(normalized)
       setSavedEmail('')
+      setSavedContactType('phone')
       setStep('share')
       await refreshOutboundInvites()
     } catch (err: unknown) {
@@ -164,14 +170,18 @@ export function InviteByEmailDialog() {
 
   const openWhatsApp = () =>
     window.open(
-      buildInviteWhatsAppUrl(inviterName, groupName, savedEmail, appUrl, savedPhone),
+      savedContactType === 'phone'
+        ? buildPhoneInviteWhatsAppUrl(inviterName, groupName, appUrl, savedPhone)
+        : buildInviteWhatsAppUrl(inviterName, groupName, savedEmail, appUrl, savedPhone),
       '_blank',
       'noopener,noreferrer'
     )
 
   const openSms = () =>
     window.open(
-      buildInviteSmsUrl(inviterName, groupName, savedEmail, appUrl, savedPhone),
+      savedContactType === 'phone'
+        ? buildPhoneInviteSmsUrl(inviterName, groupName, appUrl, savedPhone)
+        : buildInviteSmsUrl(inviterName, groupName, savedEmail, appUrl, savedPhone),
       '_blank',
       'noopener,noreferrer'
     )

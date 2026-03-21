@@ -45,9 +45,8 @@ export function buildInviteGmailComposeUrl(
 }
 
 /**
- * WhatsApp deep link — opens WhatsApp with a pre-filled invite message.
- * Phone number should be in international format (digits only, no spaces/dashes).
- * Passing an empty phone opens the share sheet on mobile without a contact pre-filled.
+ * WhatsApp deep link for an *email* invite.
+ * Tells the recipient to sign in with Google using their email.
  */
 export function buildInviteWhatsAppUrl(
   inviterName: string,
@@ -62,14 +61,34 @@ export function buildInviteWhatsAppUrl(
       `2. Sign in with Google using *${normalizeInviteEmail(inviteeEmail)}*\n` +
       `3. Accept the invite on the home screen.`
   )
-  const base = phone
+  return phone
     ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`
     : `https://wa.me/?text=${text}`
-  return base
 }
 
 /**
- * SMS URI — opens the default messaging app with a pre-filled message.
+ * WhatsApp deep link for a *phone* invite.
+ * Tells the recipient to sign in with their phone number (OTP).
+ */
+export function buildPhoneInviteWhatsAppUrl(
+  inviterName: string,
+  groupName: string,
+  appUrl: string,
+  inviteePhone = ''
+): string {
+  const text = encodeURIComponent(
+    `${inviterName} invited you to split expenses in "${groupName}" on Splitter.\n\n` +
+      `1. Open: ${appUrl}\n` +
+      `2. Sign in with your mobile number (*${inviteePhone}*) using OTP\n` +
+      `3. Accept the invite on the home screen.`
+  )
+  return inviteePhone
+    ? `https://wa.me/${inviteePhone.replace(/\D/g, '')}?text=${text}`
+    : `https://wa.me/?text=${text}`
+}
+
+/**
+ * SMS URI for an *email* invite.
  * Works on iOS and Android mobile browsers.
  */
 export function buildInviteSmsUrl(
@@ -84,6 +103,25 @@ export function buildInviteSmsUrl(
       `Open ${appUrl}, sign in with Google (${normalizeInviteEmail(inviteeEmail)}), and accept the invite.`
   )
   return phone ? `sms:${phone.replace(/\D/g, '')}?body=${body}` : `sms:?body=${body}`
+}
+
+/**
+ * SMS URI for a *phone* invite.
+ * Tells the recipient to sign in with their phone number (OTP).
+ */
+export function buildPhoneInviteSmsUrl(
+  inviterName: string,
+  groupName: string,
+  appUrl: string,
+  inviteePhone = ''
+): string {
+  const body = encodeURIComponent(
+    `${inviterName} invited you to "${groupName}" on Splitter.\n` +
+      `Open ${appUrl}, sign in with your mobile number (${inviteePhone}) using OTP, and accept the invite.`
+  )
+  return inviteePhone
+    ? `sms:${inviteePhone.replace(/\D/g, '')}?body=${body}`
+    : `sms:?body=${body}`
 }
 
 /** Default mail client (mailto) — same content as Gmail compose. */
