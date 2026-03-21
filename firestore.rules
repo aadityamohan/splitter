@@ -59,8 +59,7 @@ service cloud.firestore {
     // ── Per-user group index ──────────────────────────────────────────────────
 
     match /userGroups/{userId}/groups/{groupId} {
-      allow read, create, delete: if isSignedIn() && request.auth.uid == userId;
-      allow update: if false;
+      allow read, create, update, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
     // ── Groups ────────────────────────────────────────────────────────────────

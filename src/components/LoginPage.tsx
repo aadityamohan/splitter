@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Scale, Phone, ArrowLeft, RefreshCw } from 'lucide-react'
-import { sendPhoneOtp, verifyPhoneOtp, clearRecaptchaVerifier } from '@/lib/auth'
+import { sendPhoneOtp, verifyPhoneOtp, clearRecaptchaVerifier, initRecaptchaVerifier } from '@/lib/auth'
 import type { ConfirmationResult } from 'firebase/auth'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -56,10 +56,25 @@ export function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [otp, setOtp] = useState('')
   const [countdown, setCountdown] = useState(0)
+  const [recaptchaSolved, setRecaptchaSolved] = useState(false)
   const confirmationRef = useRef<ConfirmationResult | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Clean up recaptcha on unmount
+  // Render visible reCAPTCHA checkbox when the phone tab opens
+  useEffect(() => {
+    if (tab === 'phone' && phoneStep === 'enter-phone') {
+      setRecaptchaSolved(false)
+      const t = setTimeout(() => {
+        void initRecaptchaVerifier('recaptcha-container', () => setRecaptchaSolved(true))
+      }, 100)
+      return () => clearTimeout(t)
+    } else {
+      clearRecaptchaVerifier()
+      setRecaptchaSolved(false)
+    }
+  }, [tab, phoneStep])
+
+  // Clean up on unmount
   useEffect(() => {
     return () => {
       clearRecaptchaVerifier()
@@ -145,9 +160,6 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-4">
-      {/* Invisible reCAPTCHA container — must exist before sendPhoneOtp is called */}
-      <div id="recaptcha-container" />
-
       {/* Theme toggle — top-right */}
       <div className="fixed top-3 right-3">
         <ThemeToggle />
@@ -220,7 +232,7 @@ export function LoginPage() {
                     placeholder="+91 98765 43210"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !busy && void handleSendOtp()}
+                    onKeyDown={(e) => e.key === 'Enter' && !busy && recaptchaSolved && void handleSendOtp()}
                     className="flex-1"
                     autoComplete="tel"
                   />
@@ -229,11 +241,17 @@ export function LoginPage() {
                   Include country code (e.g. +91 for India). 10-digit numbers get +91 automatically.
                 </p>
               </div>
+
+              {/* Visible reCAPTCHA checkbox — must be ticked before sending OTP */}
+              <div className="flex justify-center">
+                <div id="recaptcha-container" />
+              </div>
+
               <Button
                 type="button"
                 className="w-full gap-2"
                 onClick={handleSendOtp}
-                disabled={busy || !phoneNumber.trim()}
+                disabled={busy || !phoneNumber.trim() || !recaptchaSolved}
               >
                 <Phone className="h-4 w-4" />
                 {busy ? 'Sending OTP…' : 'Send OTP'}

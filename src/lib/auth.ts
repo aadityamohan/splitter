@@ -64,11 +64,39 @@ export function clearRecaptchaVerifier() {
   }
 }
 
+/**
+ * Renders a visible reCAPTCHA checkbox into `containerId`.
+ * The checkbox must be ticked by the user before calling sendPhoneOtp.
+ * Returns a promise that resolves once the widget has rendered.
+ */
+export function initRecaptchaVerifier(
+  containerId = 'recaptcha-container',
+  onSolved?: () => void,
+): Promise<void> {
+  const auth = getFirebaseAuth()
+  if (!auth) return Promise.resolve()
+  // Always start fresh so the widget re-renders correctly on tab switch
+  clearRecaptchaVerifier()
+  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+    size: 'normal',
+    callback: () => {
+      onSolved?.()
+    },
+    'expired-callback': () => {
+      onSolved && onSolved() // reset solved state in UI
+      clearRecaptchaVerifier()
+    },
+  })
+  return recaptchaVerifier.render().then(() => { /* rendered */ }).catch(() => {
+    clearRecaptchaVerifier()
+  })
+}
+
 function getOrCreateRecaptchaVerifier(auth: Auth, containerId: string): RecaptchaVerifier {
   if (!recaptchaVerifier) {
     recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-      size: 'invisible',
-      callback: () => { /* OTP sent */ },
+      size: 'normal',
+      'expired-callback': () => { clearRecaptchaVerifier() },
     })
   }
   return recaptchaVerifier
@@ -92,9 +120,22 @@ export async function sendPhoneOtp(
     clearRecaptchaVerifier()
     if (e instanceof FirebaseError) {
       const msgs: Record<string, string> = {
-        'auth/invalid-phone-number': 'Invalid phone number. Use E.164 format, e.g. +919876543210',
-        'auth/too-many-requests': 'Too many attempts. Please wait a few minutes and try again.',
-        'auth/captcha-check-failed': 'reCAPTCHA check failed. Reload the page and try again.',
+        'auth/invalid-phone-number':
+          'Invalid phone number. Use E.164 format, e.g. +919876543210.',
+        'auth/too-many-requests':
+          'Too many OTP attempts. Please wait a few minutes and try again.',
+        'auth/captcha-check-failed':
+          'reCAPTCHA check failed. Disable your ad blocker (or open in incognito) and try again.',
+        'auth/network-request-failed':
+          'Network error — your ad blocker may be blocking Firebase. Try in an incognito window.',
+        'auth/operation-not-allowed':
+          'Phone sign-in is not enabled. Go to Firebase Console → Authentication → Sign-in methods → Phone and enable it.',
+        'auth/quota-exceeded':
+          'SMS quota exceeded for this project. Try again later or use a different number.',
+        'auth/missing-phone-number':
+          'No phone number provided.',
+        'auth/invalid-app-credential':
+          'reCAPTCHA verification failed. Reload and try again, or disable your ad blocker.',
       }
       if (msgs[e.code]) throw new Error(msgs[e.code])
     }
