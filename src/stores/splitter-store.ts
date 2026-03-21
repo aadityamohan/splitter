@@ -24,6 +24,8 @@ import {
   fetchParticipants,
   fetchExpenses,
   fetchSettlements,
+  subscribeToExpenses,
+  subscribeToSettlements,
   insertParticipant,
   deleteParticipant,
   insertExpense,
@@ -31,6 +33,17 @@ import {
   deleteExpense,
   deleteSettlement,
 } from "@/lib/firestore-groups";
+
+// Module-level unsubscribe handles for real-time listeners
+let unsubExpenses: (() => void) | null = null;
+let unsubSettlements: (() => void) | null = null;
+
+function tearDownLiveListeners() {
+  unsubExpenses?.();
+  unsubExpenses = null;
+  unsubSettlements?.();
+  unsubSettlements = null;
+}
 
 const STORAGE_KEY = "splitter-v2";
 
@@ -193,6 +206,9 @@ export const useSplitterStore = create<SplitterState>()(
       },
 
       selectGroup: async (groupId) => {
+        // Always tear down previous group's listeners first
+        tearDownLiveListeners();
+
         if (!groupId || !isFirebaseConfigured) {
           set({
             activeGroupId: null,
@@ -218,6 +234,15 @@ export const useSplitterStore = create<SplitterState>()(
             settlements,
             outboundInvites,
           });
+
+          // Set up real-time listeners so all members see changes instantly
+          unsubExpenses = subscribeToExpenses(groupId, (expenses) => {
+            useSplitterStore.setState({ expenses });
+          });
+          unsubSettlements = subscribeToSettlements(groupId, (settlements) => {
+            useSplitterStore.setState({ settlements });
+          });
+
           const u = getFirebaseAuth()?.currentUser;
           if (u) {
             void ensureUserGroupIndex(u.uid, groupId).catch(console.error);

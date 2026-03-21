@@ -4,9 +4,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   runTransaction,
   setDoc,
   writeBatch,
+  type QuerySnapshot,
+  type DocumentData,
 } from "firebase/firestore";
 import { getFirebaseDb, isFirebaseConfigured } from "./firebase";
 import { normalizeInviteEmail, pendingInviteDocId } from "./invite-utils";
@@ -571,3 +574,77 @@ export async function deleteSettlement(
 }
 
 export { isFirebaseConfigured };
+
+// ── Real-time listeners ───────────────────────────────────────────────────────
+
+function mapExpenseSnap(snap: QuerySnapshot<DocumentData>): Expense[] {
+  const list = snap.docs.map((d) => {
+    const x = d.data();
+    return {
+      id: d.id,
+      amount: Number(x.amount),
+      description: String(x.description ?? ""),
+      paidBy: String(x.paidBy),
+      splitBetween: Array.isArray(x.splitBetween)
+        ? x.splitBetween.map(String)
+        : [],
+      date: String(x.date ?? new Date().toISOString().slice(0, 10)),
+      createdAt: String(x.createdAt ?? ""),
+      addedBy: x.addedBy ? String(x.addedBy) : undefined,
+    } satisfies Expense;
+  });
+  return list.sort((a, b) => {
+    const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+function mapSettlementSnap(snap: QuerySnapshot<DocumentData>): Settlement[] {
+  return snap.docs
+    .map((d) => {
+      const x = d.data();
+      return {
+        id: d.id,
+        fromUser: String(x.fromUser),
+        toUser: String(x.toUser),
+        amount: Number(x.amount),
+        createdAt: String(x.createdAt ?? ""),
+        addedBy: x.addedBy ? String(x.addedBy) : undefined,
+      } satisfies Settlement;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+}
+
+/**
+ * Subscribe to real-time expense updates for a group.
+ * Returns an unsubscribe function — call it when leaving the group.
+ */
+export function subscribeToExpenses(
+  groupId: string,
+  onUpdate: (expenses: Expense[]) => void,
+): () => void {
+  return onSnapshot(
+    collection(db(), "groups", groupId, "expenses"),
+    (snap) => onUpdate(mapExpenseSnap(snap)),
+    (err) => console.error("subscribeToExpenses", err),
+  );
+}
+
+/**
+ * Subscribe to real-time settlement updates for a group.
+ * Returns an unsubscribe function — call it when leaving the group.
+ */
+export function subscribeToSettlements(
+  groupId: string,
+  onUpdate: (settlements: Settlement[]) => void,
+): () => void {
+  return onSnapshot(
+    collection(db(), "groups", groupId, "settlements"),
+    (snap) => onUpdate(mapSettlementSnap(snap)),
+    (err) => console.error("subscribeToSettlements", err),
+  );
+}

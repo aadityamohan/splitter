@@ -59,27 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Register service worker and start listening for foreground FCM messages
+    // Register service worker for background FCM, then listen for foreground messages
     let unsubFcm: (() => void) | undefined
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker
         .register('/firebase-messaging-sw.js')
-        .then((reg) => {
-          // Send Firebase config to the SW so it can initialise without env vars
-          const config = {
-            apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-            authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-            projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-            storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-            messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-            appId: import.meta.env.VITE_FIREBASE_APP_ID,
-          }
-          reg.active?.postMessage({ type: 'FIREBASE_SW_CONFIG', config })
-          reg.installing?.addEventListener('statechange', function () {
-            if (this.state === 'activated') {
-              this.postMessage({ type: 'FIREBASE_SW_CONFIG', config })
-            }
-          })
+        .then(() => {
           unsubFcm = listenForegroundMessages()
         })
         .catch((err) => console.warn('[SW] Registration failed:', err))
