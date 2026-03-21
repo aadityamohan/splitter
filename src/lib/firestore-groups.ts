@@ -487,6 +487,7 @@ export async function insertExpense(
     splitBetween: expense.splitBetween,
     date: expense.date,
     createdAt: expense.createdAt,
+    ...(expense.addedBy ? { addedBy: expense.addedBy } : {}),
   });
 }
 
@@ -499,6 +500,7 @@ export async function insertSettlement(
     toUser: settlement.toUser,
     amount: settlement.amount,
     createdAt: settlement.createdAt,
+    ...(settlement.addedBy ? { addedBy: settlement.addedBy } : {}),
   });
 }
 

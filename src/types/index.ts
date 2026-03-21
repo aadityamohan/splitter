@@ -17,6 +17,8 @@ export interface Expense {
   /** ISO date string of when the expense occurred (user-chosen), e.g. "2025-03-20" */
   date: string;
   createdAt: string;
+  /** UID of the user who added this expense — used to exclude them from notifications */
+  addedBy?: string;
 }
 
 export interface Settlement {
@@ -25,6 +27,8 @@ export interface Settlement {
   toUser: string;
   amount: number;
   createdAt: string;
+  /** UID of the user who recorded this settlement — used to exclude them from notifications */
+  addedBy?: string;
 }
 
 export interface Balance {

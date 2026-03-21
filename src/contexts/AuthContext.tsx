@@ -11,6 +11,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth, signInWithGoogle, signOutUser } from '@/lib/auth'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { useSplitterStore } from '@/stores/splitter-store'
+import { initFcm, listenForegroundMessages } from '@/lib/fcm'
 
 type AuthContextValue = {
   user: User | null
@@ -58,6 +59,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Register service worker and start listening for foreground FCM messages
+    let unsubFcm: (() => void) | undefined
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker
+        .register('/firebase-messaging-sw.js')
+        .then((reg) => {
+          // Send Firebase config to the SW so it can initialise without env vars
+          const config = {
+            apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+            authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+            projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+            storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+            appId: import.meta.env.VITE_FIREBASE_APP_ID,
+          }
+          reg.active?.postMessage({ type: 'FIREBASE_SW_CONFIG', config })
+          reg.installing?.addEventListener('statechange', function () {
+            if (this.state === 'activated') {
+              this.postMessage({ type: 'FIREBASE_SW_CONFIG', config })
+            }
+          })
+          unsubFcm = listenForegroundMessages()
+        })
+        .catch((err) => console.warn('[SW] Registration failed:', err))
+    }
+
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u)
       setLoading(false)
@@ -65,9 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void restoreSessionWorkspace(u.uid, u.email, u.displayName, u.phoneNumber).catch((err) =>
           console.error('restoreSessionWorkspace', err)
         )
+        // Request notification permission and store FCM token
+        void initFcm(u.uid).catch((err) => console.warn('[FCM] init failed:', err))
       }
     })
-    return unsub
+    return () => {
+      unsub()
+      unsubFcm?.()
+    }
   }, [authRequired])
 
   const signIn = useCallback(async () => {

@@ -351,11 +351,13 @@ export const useSplitterStore = create<SplitterState>()(
       addExpense: (expense) => {
         const gid = get().activeGroupId;
         if (!gid) return;
+        const uid = getFirebaseAuth()?.currentUser?.uid;
         const newExpense: Expense = {
           ...expense,
           id: generateId(),
           date: expense.date || new Date().toISOString().slice(0, 10),
           createdAt: new Date().toISOString(),
+          ...(uid ? { addedBy: uid } : {}),
         };
         set((s) => ({ expenses: [newExpense, ...s.expenses] }));
         insertExpense(gid, newExpense).catch(console.error);
@@ -364,10 +366,12 @@ export const useSplitterStore = create<SplitterState>()(
       addSettlement: (settlement) => {
         const gid = get().activeGroupId;
         if (!gid) return;
+        const uid = getFirebaseAuth()?.currentUser?.uid;
         const newSettlement: Settlement = {
           ...settlement,
           id: generateId(),
           createdAt: new Date().toISOString(),
+          ...(uid ? { addedBy: uid } : {}),
         };
         set((s) => ({
           settlements: [newSettlement, ...s.settlements],
