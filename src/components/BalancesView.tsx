@@ -99,7 +99,6 @@ function computeBreakdown(
   toId: string,
   expenses: Expense[],
   settlements: Settlement[],
-  getName: (id: string) => string,
 ): BreakdownLine[] {
   const lines: BreakdownLine[] = []
 
@@ -260,7 +259,7 @@ export function BalancesView() {
           const iOwe    = myPid === b.from
           const iAmOwed = myPid === b.to
           const isOpen  = !collapsed.has(key)
-          const lines   = computeBreakdown(b.from, b.to, expenses, settlements, getName)
+          const lines   = computeBreakdown(b.from, b.to, expenses, settlements)
           const runningTotal = lines.reduce((acc, l) => acc + l.amount, 0)
 
           return (

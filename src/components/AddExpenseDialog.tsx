@@ -27,7 +27,6 @@ import {
   IndianRupee,
   ArrowRight,
   CalendarDays,
-  Pencil,
 } from "lucide-react";
 import type { Expense } from "@/types";
 
