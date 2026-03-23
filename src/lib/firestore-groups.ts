@@ -455,6 +455,8 @@ export async function fetchSettlements(groupId: string): Promise<Settlement[]> {
       toUser: String(x.toUser),
       amount: Number(x.amount),
       createdAt: String(x.createdAt ?? ""),
+      paymentMethod: x.paymentMethod ? String(x.paymentMethod) as Settlement['paymentMethod'] : undefined,
+      addedBy: x.addedBy ? String(x.addedBy) : undefined,
     };
   });
   return list.sort(
@@ -503,8 +505,28 @@ export async function insertSettlement(
     toUser: settlement.toUser,
     amount: settlement.amount,
     createdAt: settlement.createdAt,
+    ...(settlement.paymentMethod ? { paymentMethod: settlement.paymentMethod } : {}),
     ...(settlement.addedBy ? { addedBy: settlement.addedBy } : {}),
   });
+}
+
+export async function updateExpense(
+  groupId: string,
+  expense: Expense,
+): Promise<void> {
+  await setDoc(
+    doc(db(), "groups", groupId, "expenses", expense.id),
+    {
+      amount: expense.amount,
+      description: expense.description,
+      paidBy: expense.paidBy,
+      splitBetween: expense.splitBetween,
+      date: expense.date,
+      createdAt: expense.createdAt,
+      ...(expense.addedBy ? { addedBy: expense.addedBy } : {}),
+    },
+    { merge: true },
+  );
 }
 
 export async function deleteExpense(
@@ -610,6 +632,7 @@ function mapSettlementSnap(snap: QuerySnapshot<DocumentData>): Settlement[] {
         toUser: String(x.toUser),
         amount: Number(x.amount),
         createdAt: String(x.createdAt ?? ""),
+        paymentMethod: x.paymentMethod ? String(x.paymentMethod) as Settlement['paymentMethod'] : undefined,
         addedBy: x.addedBy ? String(x.addedBy) : undefined,
       } satisfies Settlement;
     })

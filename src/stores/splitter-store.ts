@@ -29,6 +29,7 @@ import {
   insertParticipant,
   deleteParticipant,
   insertExpense,
+  updateExpense,
   insertSettlement,
   deleteExpense,
   deleteSettlement,
@@ -122,6 +123,7 @@ export interface SplitterState {
   addParticipant: (name: string) => void;
   removeParticipant: (id: string) => void;
   addExpense: (expense: Omit<Expense, "id" | "createdAt">) => void;
+  editExpense: (id: string, patch: Partial<Omit<Expense, "id" | "createdAt">>) => void;
   addSettlement: (settlement: Omit<Settlement, "id" | "createdAt">) => void;
   deleteExpense: (id: string) => void;
   deleteSettlement: (id: string) => void;
@@ -386,6 +388,20 @@ export const useSplitterStore = create<SplitterState>()(
         };
         set((s) => ({ expenses: [newExpense, ...s.expenses] }));
         insertExpense(gid, newExpense).catch(console.error);
+      },
+
+      editExpense: (id, patch) => {
+        const gid = get().activeGroupId;
+        if (!gid) return;
+        let updated: Expense | undefined;
+        set((s) => ({
+          expenses: s.expenses.map((e) => {
+            if (e.id !== id) return e;
+            updated = { ...e, ...patch };
+            return updated;
+          }),
+        }));
+        if (updated) updateExpense(gid, updated).catch(console.error);
       },
 
       addSettlement: (settlement) => {

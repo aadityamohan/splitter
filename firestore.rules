@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Any signed-in Firebase user.
     function isSignedIn() {
       return request.auth != null;
     }
@@ -13,19 +12,18 @@ service cloud.firestore {
         : '';
     }
 
-    // E.164 phone number on the token (e.g. "+919876543210"). Empty string for non-phone users.
     function phoneNumber() {
       return request.auth.token.phone_number != null
         ? request.auth.token.phone_number
         : '';
     }
 
-    function groupDoc(groupId) {
-      return get(/databases/$(database)/documents/groups/$(groupId));
-    }
-
+    // ── Membership check via userGroups index (cheap exists(), no get()) ──────
+    // userGroups/{uid}/groups/{groupId} is written when a user joins a group,
+    // so this is always consistent and avoids expensive get() calls inside rules.
     function isGroupMember(groupId) {
-      return isSignedIn() && request.auth.uid in groupDoc(groupId).data.memberIds;
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/userGroups/$(request.auth.uid)/groups/$(groupId));
     }
 
     // ── Email invite helpers ──────────────────────────────────────────────────
@@ -34,7 +32,6 @@ service cloud.firestore {
       return groupId + '|' + emailLower();
     }
 
-    // The document ID already encodes groupId so a single exists() is sufficient
     function hasPendingInviteForGroup(groupId) {
       return emailLower() != ''
         && exists(/databases/$(database)/documents/mailInvites/$(emailLower())/items/$(pendingInviteIdForMe(groupId)));
@@ -46,7 +43,6 @@ service cloud.firestore {
       return groupId + '|' + phoneNumber();
     }
 
-    // The document ID already encodes groupId so a single exists() is sufficient
     function hasPendingPhoneInviteForGroup(groupId) {
       return phoneNumber() != ''
         && exists(/databases/$(database)/documents/phoneInvites/$(phoneNumber())/items/$(pendingPhoneInviteIdForMe(groupId)));
@@ -62,7 +58,7 @@ service cloud.firestore {
       allow read, create, update, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // ── FCM push tokens (written by client, read by Cloud Functions via admin SDK) ──
+    // ── FCM push tokens ───────────────────────────────────────────────────────
 
     match /userTokens/{userId}/tokens/{tokenId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
@@ -71,9 +67,9 @@ service cloud.firestore {
     // ── Groups ────────────────────────────────────────────────────────────────
 
     match /groups/{groupId} {
-      // Members can read; invitees must read the group doc to run accept (transaction.get).
+      // Members read via userGroups index; invitees must read to run the accept transaction.
       allow read: if isSignedIn() && (
-        request.auth.uid in resource.data.memberIds
+        isGroupMember(groupId)
         || hasAnyPendingInviteForGroup(groupId)
       );
 
@@ -82,6 +78,7 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.memberIds
         && request.resource.data.memberIds.size() == 1;
 
+      // Members can update; also allows the join-via-invite write (add self to memberIds).
       allow update: if isSignedIn() && (
         isGroupMember(groupId)
         || (
@@ -98,28 +95,29 @@ service cloud.firestore {
       match /participants/{pid} {
         allow read, write: if isGroupMember(groupId);
       }
+
       match /expenses/{eid} {
         allow read, write: if isGroupMember(groupId);
       }
+
       match /settlements/{sid} {
         allow read, write: if isGroupMember(groupId);
       }
+
       match /members/{mid} {
         allow read: if isGroupMember(groupId);
-        allow create: if isSignedIn() && (
-          (request.auth.uid == mid && isGroupMember(groupId))
-          || (
-            request.auth.uid == mid
-            && !(request.auth.uid in groupDoc(groupId).data.memberIds)
-            && hasAnyPendingInviteForGroup(groupId)
-          )
+        // Members add their own profile; invitees add theirs during accept.
+        allow create: if isSignedIn() && request.auth.uid == mid && (
+          isGroupMember(groupId)
+          || hasAnyPendingInviteForGroup(groupId)
         );
         allow update, delete: if isGroupMember(groupId);
       }
+
       match /outboundInvites/{outId} {
         allow read: if isGroupMember(groupId);
         allow create, update: if isGroupMember(groupId);
-        // Invitee declining must delete the outbound doc before they're a member.
+        // Invitee can delete (decline) before they are a member.
         allow delete: if isGroupMember(groupId)
           || (isSignedIn()
             && exists(/databases/$(database)/documents/mailInvites/$(emailLower())/items/$(outId)))
@@ -134,14 +132,16 @@ service cloud.firestore {
     match /mailInvites/{emailKey}/items/{inviteId} {
       allow read: if isSignedIn() && emailKey == emailLower();
 
+      // Only a group member can invite.
       allow create: if isSignedIn()
         && emailKey == request.resource.data.emailLower
-        && request.auth.uid in groupDoc(request.resource.data.groupId).data.memberIds
+        && isGroupMember(request.resource.data.groupId)
         && request.resource.data.invitedBy == request.auth.uid;
 
+      // The invitee or any group member can delete (accept / cancel).
       allow delete: if isSignedIn() && (
         emailKey == emailLower()
-        || request.auth.uid in groupDoc(resource.data.groupId).data.memberIds
+        || isGroupMember(resource.data.groupId)
       );
 
       allow update: if false;
@@ -150,19 +150,16 @@ service cloud.firestore {
     // ── Phone invites ─────────────────────────────────────────────────────────
 
     match /phoneInvites/{phone}/items/{inviteId} {
-      // Only the person whose phone matches can list/read their invites.
       allow read: if isSignedIn() && phone == phoneNumber();
 
-      // A group member can invite anyone by phone.
       allow create: if isSignedIn()
         && phone == request.resource.data.phone
-        && request.auth.uid in groupDoc(request.resource.data.groupId).data.memberIds
+        && isGroupMember(request.resource.data.groupId)
         && request.resource.data.invitedBy == request.auth.uid;
 
-      // The invitee or any group member can delete (accept/decline/cancel).
       allow delete: if isSignedIn() && (
         phone == phoneNumber()
-        || request.auth.uid in groupDoc(resource.data.groupId).data.memberIds
+        || isGroupMember(resource.data.groupId)
       );
 
       allow update: if false;

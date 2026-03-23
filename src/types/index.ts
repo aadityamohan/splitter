@@ -21,12 +21,16 @@ export interface Expense {
   addedBy?: string;
 }
 
+export type PaymentMethod = 'cash' | 'upi' | 'bank' | 'card' | 'other'
+
 export interface Settlement {
   id: string;
   fromUser: string;
   toUser: string;
   amount: number;
   createdAt: string;
+  /** How the payment was made */
+  paymentMethod?: PaymentMethod;
   /** UID of the user who recorded this settlement — used to exclude them from notifications */
   addedBy?: string;
 }
