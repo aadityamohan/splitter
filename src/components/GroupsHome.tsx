@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label'
 import { Users, Plus, Mail, LogIn, Phone } from 'lucide-react'
 import type { PendingInviteDoc } from '@/lib/firestore-groups'
 import { fetchGroupNetBalance } from '@/lib/firestore-groups'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { UserMenu } from '@/components/UserMenu'
 
 export function GroupsHome() {
   const { user } = useAuth()
@@ -108,12 +108,7 @@ export function GroupsHome() {
       <header className="border-b">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <h1 className="text-xl font-bold tracking-tight">Splitter</h1>
-          <div className="flex items-center gap-1">
-            <p className="max-w-[160px] truncate text-sm text-muted-foreground hidden sm:block">
-              {user?.email ?? user?.phoneNumber}
-            </p>
-            <ThemeToggle />
-          </div>
+          <UserMenu />
         </div>
       </header>
 
