@@ -25,6 +25,7 @@ import { Users, Plus, Mail, LogIn, Phone } from 'lucide-react'
 import type { PendingInviteDoc } from '@/lib/firestore-groups'
 import { fetchGroupNetBalance } from '@/lib/firestore-groups'
 import { UserMenu } from '@/components/UserMenu'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export function GroupsHome() {
   const { user } = useAuth()
@@ -35,6 +36,7 @@ export function GroupsHome() {
   const acceptPendingInvite = useSplitterStore((s) => s.acceptPendingInvite)
   const declinePendingInvite = useSplitterStore((s) => s.declinePendingInvite)
 
+  const isLoadingGroups = useSplitterStore((s) => s.isLoadingGroups)
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -113,7 +115,20 @@ export function GroupsHome() {
       </header>
 
       <main className="container mx-auto max-w-lg space-y-8 px-4 py-8">
-        {pendingInvites.length > 0 ? (
+        {isLoadingGroups && (
+          <section className="space-y-3">
+            <Skeleton className="h-6 w-28" />
+            <div className="rounded-lg border p-4 space-y-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-56" />
+              <div className="flex gap-2 pt-1">
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </div>
+          </section>
+        )}
+        {!isLoadingGroups && pendingInvites.length > 0 ? (
           <section className="space-y-3">
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <Mail className="h-5 w-5" />
@@ -201,7 +216,19 @@ export function GroupsHome() {
             </Dialog>
           </div>
 
-          {myGroups.length === 0 ? (
+          {isLoadingGroups ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg border px-4 py-4 gap-3">
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-16 shrink-0" />
+                </div>
+              ))}
+            </div>
+          ) : myGroups.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
                 No groups yet. Create one to start tracking shared expenses.

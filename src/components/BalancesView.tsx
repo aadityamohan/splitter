@@ -30,6 +30,7 @@ import {
   Banknote,
 } from 'lucide-react'
 import type { Balance, Expense, Settlement, PaymentMethod } from '@/types'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ── Payment method config ────────────────────────────────────────────────────
 const PAYMENT_METHODS: { value: PaymentMethod; label: string; emoji: string }[] = [
@@ -158,10 +159,11 @@ function formatDate(iso: string) {
 // ── Component ────────────────────────────────────────────────────────────────
 export function BalancesView() {
   const { user } = useAuth()
-  const participants = useSplitterStore((s) => s.participants)
-  const expenses    = useSplitterStore((s) => s.expenses)
-  const settlements = useSplitterStore((s) => s.settlements)
-  const addSettlement = useSplitterStore((s) => s.addSettlement)
+  const participants    = useSplitterStore((s) => s.participants)
+  const expenses        = useSplitterStore((s) => s.expenses)
+  const settlements     = useSplitterStore((s) => s.settlements)
+  const addSettlement   = useSplitterStore((s) => s.addSettlement)
+  const isLoadingLedger = useSplitterStore((s) => s.isLoadingLedger)
 
   const balances = useMemo(
     () => computeBalances(participants, expenses, settlements),
@@ -218,6 +220,42 @@ export function BalancesView() {
     setSettleDialog(null)
     setSettleAmount('')
     setSettleMethod('')
+  }
+
+  if (isLoadingLedger) {
+    return (
+      <div className="space-y-3">
+        {/* Skeleton summary banner */}
+        <Skeleton className="h-14 w-full rounded-xl" />
+        {/* Skeleton balance cards */}
+        {[1, 2].map((i) => (
+          <Card key={i}>
+            <CardContent className="py-4 px-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-4 rounded" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-8 w-16 rounded-md" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              </div>
+              <div className="border-t pt-3 space-y-2">
+                {[1, 2, 3].map((j) => (
+                  <div key={j} className="flex justify-between">
+                    <Skeleton className="h-3.5 w-40" />
+                    <Skeleton className="h-3.5 w-16" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
   }
 
   if (balances.length === 0) {

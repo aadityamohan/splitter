@@ -83,6 +83,10 @@ export interface SplitterState {
   settlements: Settlement[];
   /** User-saved custom descriptions; persisted in localStorage */
   savedDescriptions: string[];
+  /** True while refreshWorkspace is running (initial groups fetch) */
+  isLoadingGroups: boolean;
+  /** True while selectGroup is loading the ledger */
+  isLoadingLedger: boolean;
 
   /** Load groups + invites for signed-in user */
   refreshWorkspace: (
@@ -142,10 +146,13 @@ export const useSplitterStore = create<SplitterState>()(
       savedDescriptions: [],
       expenses: [],
       settlements: [],
+      isLoadingGroups: true,
+      isLoadingLedger: false,
 
       refreshWorkspace: async (uid, email, _displayName, phone) => {
+        set({ isLoadingGroups: true });
         if (!isFirebaseConfigured) {
-          set({ myGroups: [], pendingInvites: [] });
+          set({ myGroups: [], pendingInvites: [], isLoadingGroups: false });
           return;
         }
 
@@ -204,7 +211,7 @@ export const useSplitterStore = create<SplitterState>()(
           }
         }
 
-        set({ myGroups, pendingInvites });
+        set({ myGroups, pendingInvites, isLoadingGroups: false });
       },
 
       selectGroup: async (groupId) => {
@@ -218,9 +225,11 @@ export const useSplitterStore = create<SplitterState>()(
             expenses: [],
             settlements: [],
             outboundInvites: [],
+            isLoadingLedger: false,
           });
           return;
         }
+        set({ isLoadingLedger: true });
         try {
           const [participants, expenses, settlements, outboundInvites] =
             await Promise.all([
@@ -235,6 +244,7 @@ export const useSplitterStore = create<SplitterState>()(
             expenses,
             settlements,
             outboundInvites,
+            isLoadingLedger: false,
           });
 
           // Set up real-time listeners so all members see changes instantly
@@ -251,6 +261,7 @@ export const useSplitterStore = create<SplitterState>()(
           }
         } catch (e) {
           console.error("selectGroup", e);
+          set({ isLoadingLedger: false });
         }
       },
 

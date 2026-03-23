@@ -15,6 +15,7 @@ import { Receipt, ArrowRight, Banknote, CalendarDays, Pencil, Trash2 } from "luc
 import type { Expense, Settlement } from "@/types";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { paymentMethodLabel, paymentMethodEmoji } from "@/components/BalancesView";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 
 type PendingDelete =
@@ -41,8 +42,9 @@ export function HistoryView() {
   const expenses = useSplitterStore((s) => s.expenses);
   const settlements = useSplitterStore((s) => s.settlements);
   const participants = useSplitterStore((s) => s.participants);
-  const deleteExpense = useSplitterStore((s) => s.deleteExpense);
+  const deleteExpense   = useSplitterStore((s) => s.deleteExpense);
   const deleteSettlement = useSplitterStore((s) => s.deleteSettlement);
+  const isLoadingLedger  = useSplitterStore((s) => s.isLoadingLedger);
 
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
@@ -61,6 +63,37 @@ export function HistoryView() {
 
   const getUserName = (id: string) =>
     participants.find((p) => p.id === id)?.name ?? id;
+
+  if (isLoadingLedger) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardContent className="py-3 px-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-7 w-7 rounded-md" />
+                  <Skeleton className="h-7 w-14 rounded-md" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pl-12">
+                <Skeleton className="h-3 w-3 rounded-full" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   if (history.length === 0) {
     return (
