@@ -12,6 +12,7 @@ import { getFirebaseAuth, signInWithGoogle, signOutUser } from '@/lib/auth'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { useSplitterStore } from '@/stores/splitter-store'
 import { initFcm, listenForegroundMessages } from '@/lib/fcm'
+import { clearTestSession } from '@/lib/test-session'
 
 type AuthContextValue = {
   user: User | null
@@ -93,6 +94,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await signOutUser()
+    clearTestSession()
+    // Drop ?test from the URL so exiting test mode doesn't re-trigger auto-login
+    try {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('test')) {
+        url.searchParams.delete('test')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+      }
+    } catch { /* ignore */ }
     useSplitterStore.setState({
       activeGroupId: null,
       myGroups: [],

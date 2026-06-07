@@ -202,14 +202,19 @@ export async function createGroup(
   const now = new Date().toISOString();
   const participantId = crypto.randomUUID();
 
-  // Commit the group doc first. Rules use get(group) for subcollections; same-batch
-  // writes only see pre-commit state, so members/participants would otherwise be denied.
+  // Commit the group doc AND the userGroups index first. Subcollection rules
+  // (members/participants) check isGroupMember via the userGroups index, and
+  // batched writes only see pre-commit state — so the index must already exist
+  // before we write members/participants, or those writes get denied.
   const first = writeBatch(db());
   first.set(groupRef(groupId), {
     name: name.trim() || "New group",
     createdBy: ownerUid,
     memberIds: [ownerUid],
     createdAt: now,
+  });
+  first.set(userGroupIndexRef(ownerUid, groupId), {
+    joinedAt: now,
   });
   await first.commit();
 
@@ -222,9 +227,6 @@ export async function createGroup(
   second.set(doc(db(), "groups", groupId, "participants", participantId), {
     name: ownerName || "You",
     linkedUid: ownerUid,
-  });
-  second.set(userGroupIndexRef(ownerUid, groupId), {
-    joinedAt: now,
   });
   await second.commit();
 
@@ -351,9 +353,13 @@ export async function acceptInvite(
     }
 
     transaction.update(gRef, { memberIds });
+    // Write the userGroups index inside the transaction so isGroupMember()
+    // resolves true for the follow-up batch below. (Rules check this index, and
+    // batched writes can't see their own un-committed userGroups write.)
+    transaction.set(userGroupIndexRef(uid, groupId), { joinedAt: now });
   });
 
-  // Now isGroupMember(uid). Remove invites and add profile + ledger rows.
+  // Index now exists → isGroupMember(uid) is true. Remove invites, add profile + ledger rows.
   const second = writeBatch(db());
   second.delete(invRef);
   second.delete(doc(db(), "groups", groupId, "outboundInvites", invite.id));
@@ -367,7 +373,6 @@ export async function acceptInvite(
     name: displayName || email || phone || "Member",
     linkedUid: uid,
   });
-  second.set(userGroupIndexRef(uid, groupId), { joinedAt: now });
   await second.commit();
 }
 

@@ -3,6 +3,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
   signInWithPhoneNumber,
   linkWithPhoneNumber,
   updateProfile,
@@ -58,6 +59,47 @@ export async function signInWithGoogle(): Promise<void> {
   }
 }
 
+// ── Test account (one-click email/password login for QA) ───────────────────────
+
+/** True when test-account credentials are configured at build time. */
+export const isTestAccountConfigured = Boolean(
+  import.meta.env.VITE_TEST_ACCOUNT_EMAIL && import.meta.env.VITE_TEST_ACCOUNT_PASSWORD,
+)
+
+/**
+ * Signs in with the fixed test account. No OTP, no reCAPTCHA, no SMS —
+ * uses Firebase Email/Password. Credentials come from VITE_TEST_ACCOUNT_* env vars.
+ */
+export async function signInWithTestAccount(): Promise<void> {
+  const auth = getFirebaseAuth()
+  if (!auth) throw new Error('Firebase Auth is not configured')
+  const email = import.meta.env.VITE_TEST_ACCOUNT_EMAIL
+  const password = import.meta.env.VITE_TEST_ACCOUNT_PASSWORD
+  if (!email || !password) {
+    throw new Error(
+      'Test account is not configured. Set VITE_TEST_ACCOUNT_EMAIL and VITE_TEST_ACCOUNT_PASSWORD in .env.',
+    )
+  }
+  try {
+    await signInWithEmailAndPassword(auth, email, password)
+  } catch (e) {
+    if (e instanceof FirebaseError) {
+      const msgs: Record<string, string> = {
+        'auth/invalid-credential':
+          'Test account credentials are wrong, or the user does not exist. Create it in Firebase Console → Authentication → Users.',
+        'auth/user-not-found':
+          'Test user not found. Create it in Firebase Console → Authentication → Users, then enable the Email/Password provider.',
+        'auth/wrong-password':
+          'Test account password does not match VITE_TEST_ACCOUNT_PASSWORD.',
+        'auth/operation-not-allowed':
+          'Email/Password sign-in is disabled. Enable it in Firebase Console → Authentication → Sign-in method.',
+      }
+      if (msgs[e.code]) throw new Error(msgs[e.code])
+    }
+    mapAuthError(e)
+  }
+}
+
 // ── Phone OTP ─────────────────────────────────────────────────────────────────
 
 let recaptchaVerifier: RecaptchaVerifier | null = null
@@ -105,6 +147,20 @@ function getOrCreateRecaptchaVerifier(auth: Auth, containerId: string): Recaptch
     })
   }
   return recaptchaVerifier
+}
+
+/**
+ * Creates an *invisible* reCAPTCHA verifier (no checkbox, auto-solves).
+ * Used by the test-mode login page so testers don't need to tick anything.
+ */
+export function initInvisibleRecaptchaVerifier(containerId = 'recaptcha-container-invisible'): void {
+  const auth = getFirebaseAuth()
+  if (!auth) return
+  clearRecaptchaVerifier()
+  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+    size: 'invisible',
+    'expired-callback': () => { clearRecaptchaVerifier() },
+  })
 }
 
 /**
