@@ -233,6 +233,137 @@ export async function createGroup(
   return groupId;
 }
 
+// ── Demo data seeding (for the test account) ───────────────────────────────────
+
+/**
+ * Seeds two demo groups with participants, expenses, and a settlement so the
+ * test account looks populated. No-op if the user already has any group.
+ * Respects security rules (writes the userGroups index before subcollections).
+ */
+export async function seedDemoData(
+  uid: string,
+  displayName: string,
+  email: string,
+): Promise<void> {
+  const existing = await fetchMyGroups(uid);
+  if (existing.length > 0) return; // already has data — don't duplicate
+
+  const me = displayName || "You";
+  const daysAgo = (n: number) =>
+    new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const tsAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+
+  // ── Group 1: Goa Trip (rich) ──────────────────────────────────────────────
+  const g1 = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const p = {
+    me: crypto.randomUUID(),
+    alice: crypto.randomUUID(),
+    bob: crypto.randomUUID(),
+    carol: crypto.randomUUID(),
+  };
+
+  const g1a = writeBatch(db());
+  g1a.set(groupRef(g1), {
+    name: "Goa Trip 2026 🏖️",
+    createdBy: uid,
+    memberIds: [uid],
+    createdAt: now,
+  });
+  g1a.set(userGroupIndexRef(uid, g1), { joinedAt: now });
+  await g1a.commit();
+
+  const g1b = writeBatch(db());
+  g1b.set(doc(db(), "groups", g1, "members", uid), {
+    displayName: me,
+    email,
+    joinedAt: now,
+  });
+  g1b.set(doc(db(), "groups", g1, "participants", p.me), { name: me, linkedUid: uid });
+  g1b.set(doc(db(), "groups", g1, "participants", p.alice), { name: "Alice" });
+  g1b.set(doc(db(), "groups", g1, "participants", p.bob), { name: "Bob" });
+  g1b.set(doc(db(), "groups", g1, "participants", p.carol), { name: "Carol" });
+  await g1b.commit();
+
+  const all = [p.me, p.alice, p.bob, p.carol];
+  const g1exp = [
+    { desc: "Hotel (3 nights)", amt: 12000, by: p.me, split: all, d: 6 },
+    { desc: "Dinner — beach shack", amt: 3200, by: p.alice, split: all, d: 5 },
+    { desc: "Scooter rental", amt: 1800, by: p.bob, split: all, d: 5 },
+    { desc: "Groceries & water", amt: 2400, by: p.me, split: all, d: 4 },
+    { desc: "Club night 🍹", amt: 4000, by: p.alice, split: [p.me, p.alice, p.carol], d: 3 },
+    { desc: "Cab to airport", amt: 1600, by: p.carol, split: all, d: 1 },
+  ];
+
+  const g1c = writeBatch(db());
+  for (const e of g1exp) {
+    g1c.set(doc(db(), "groups", g1, "expenses", crypto.randomUUID()), {
+      amount: e.amt,
+      description: e.desc,
+      paidBy: e.by,
+      splitBetween: e.split,
+      date: daysAgo(e.d),
+      createdAt: tsAgo(e.d),
+      addedBy: uid,
+    });
+  }
+  // A part-settlement: Bob paid You back ₹1500 via UPI
+  g1c.set(doc(db(), "groups", g1, "settlements", crypto.randomUUID()), {
+    fromUser: p.bob,
+    toUser: p.me,
+    amount: 1500,
+    paymentMethod: "upi",
+    createdAt: tsAgo(2),
+    addedBy: uid,
+  });
+  await g1c.commit();
+
+  // ── Group 2: Flatmates (small) ────────────────────────────────────────────
+  const g2 = crypto.randomUUID();
+  const q = { me: crypto.randomUUID(), alice: crypto.randomUUID() };
+
+  const g2a = writeBatch(db());
+  g2a.set(groupRef(g2), {
+    name: "Flatmates 🏠",
+    createdBy: uid,
+    memberIds: [uid],
+    createdAt: now,
+  });
+  g2a.set(userGroupIndexRef(uid, g2), { joinedAt: now });
+  await g2a.commit();
+
+  const g2b = writeBatch(db());
+  g2b.set(doc(db(), "groups", g2, "members", uid), {
+    displayName: me,
+    email,
+    joinedAt: now,
+  });
+  g2b.set(doc(db(), "groups", g2, "participants", q.me), { name: me, linkedUid: uid });
+  g2b.set(doc(db(), "groups", g2, "participants", q.alice), { name: "Alice" });
+  await g2b.commit();
+
+  const g2c = writeBatch(db());
+  g2c.set(doc(db(), "groups", g2, "expenses", crypto.randomUUID()), {
+    amount: 1800,
+    description: "Electricity bill",
+    paidBy: q.me,
+    splitBetween: [q.me, q.alice],
+    date: daysAgo(10),
+    createdAt: tsAgo(10),
+    addedBy: uid,
+  });
+  g2c.set(doc(db(), "groups", g2, "expenses", crypto.randomUUID()), {
+    amount: 950,
+    description: "Internet (monthly)",
+    paidBy: q.alice,
+    splitBetween: [q.me, q.alice],
+    date: daysAgo(8),
+    createdAt: tsAgo(8),
+    addedBy: uid,
+  });
+  await g2c.commit();
+}
+
 export async function createPendingInvite(
   groupId: string,
   groupName: string,

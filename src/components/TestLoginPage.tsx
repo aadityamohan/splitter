@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { signInWithTestAccount, isTestAccountConfigured } from '@/lib/auth'
+import {
+  signInWithTestAccount,
+  isTestAccountConfigured,
+  getFirebaseAuth,
+  updateDisplayName,
+} from '@/lib/auth'
+import { seedDemoData } from '@/lib/firestore-groups'
+import { useSplitterStore } from '@/stores/splitter-store'
 import { markTestSession } from '@/lib/test-session'
 import { FlaskConical, Loader2, AlertTriangle, RotateCw } from 'lucide-react'
 
-type Status = 'signing-in' | 'error'
+type Status = 'signing-in' | 'seeding' | 'error'
 
 export function TestLoginPage() {
   const [status, setStatus] = useState<Status>('signing-in')
@@ -17,7 +24,21 @@ export function TestLoginPage() {
     try {
       markTestSession()
       await signInWithTestAccount()
-      // On success, AuthContext's onAuthStateChanged swaps to GroupsHome.
+
+      // Seed demo data on first login so the account looks populated.
+      const u = getFirebaseAuth()?.currentUser
+      if (u) {
+        setStatus('seeding')
+        if (!u.displayName) {
+          try { await updateDisplayName('Demo User') } catch { /* non-fatal */ }
+        }
+        await seedDemoData(u.uid, u.displayName ?? 'Demo User', u.email ?? '')
+        // Surface the seeded groups (onAuthStateChanged also refreshes, this guarantees it)
+        await useSplitterStore
+          .getState()
+          .refreshWorkspace(u.uid, u.email, u.displayName ?? 'Demo User', u.phoneNumber)
+      }
+      // AuthContext's onAuthStateChanged swaps to GroupsHome.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Test sign-in failed.')
       setStatus('error')
@@ -64,11 +85,13 @@ export function TestLoginPage() {
             </div>
 
             <div className="px-6 py-8">
-              {status === 'signing-in' ? (
+              {status === 'signing-in' || status === 'seeding' ? (
                 <div className="flex flex-col items-center gap-3 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
                   <p className="text-sm text-muted-foreground">
-                    Signing in to the test account…
+                    {status === 'seeding'
+                      ? 'Setting up demo data…'
+                      : 'Signing in to the test account…'}
                   </p>
                 </div>
               ) : (
