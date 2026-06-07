@@ -240,13 +240,18 @@ export async function createGroup(
  * test account looks populated. No-op if the user already has any group.
  * Respects security rules (writes the userGroups index before subcollections).
  */
+const DEMO_GROUP_NAME = "Goa Trip 2026 🏖️";
+
 export async function seedDemoData(
   uid: string,
   displayName: string,
   email: string,
 ): Promise<void> {
   const existing = await fetchMyGroups(uid);
-  if (existing.length > 0) return; // already has data — don't duplicate
+  // Seed only if the demo group isn't already present. This lets demo data
+  // coexist with any groups the tester created manually, and prevents
+  // duplicate seeding on repeat logins.
+  if (existing.some((g) => g.name === DEMO_GROUP_NAME)) return;
 
   const me = displayName || "You";
   const daysAgo = (n: number) =>
@@ -265,7 +270,7 @@ export async function seedDemoData(
 
   const g1a = writeBatch(db());
   g1a.set(groupRef(g1), {
-    name: "Goa Trip 2026 🏖️",
+    name: DEMO_GROUP_NAME,
     createdBy: uid,
     memberIds: [uid],
     createdAt: now,

@@ -11,8 +11,9 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth, signInWithGoogle, signOutUser } from '@/lib/auth'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { useSplitterStore } from '@/stores/splitter-store'
+import { seedDemoData } from '@/lib/firestore-groups'
 import { initFcm, listenForegroundMessages } from '@/lib/fcm'
-import { clearTestSession } from '@/lib/test-session'
+import { clearTestSession, isTestSession } from '@/lib/test-session'
 
 type AuthContextValue = {
   user: User | null
@@ -31,6 +32,15 @@ async function restoreSessionWorkspace(
   phone: string | null
 ) {
   const store = useSplitterStore.getState()
+  // In a test session, seed demo data before loading the workspace so the
+  // account always looks populated (idempotent — skips if demo group exists).
+  if (isTestSession()) {
+    try {
+      await seedDemoData(uid, displayName ?? 'Demo User', email ?? '')
+    } catch (err) {
+      console.warn('[seed] demo data failed:', err)
+    }
+  }
   await store.refreshWorkspace(uid, email, displayName, phone)
   const { activeGroupId, myGroups } = useSplitterStore.getState()
   const stillMember = activeGroupId && myGroups.some((g) => g.id === activeGroupId)
